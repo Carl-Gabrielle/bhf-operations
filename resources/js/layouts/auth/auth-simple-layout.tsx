@@ -16,8 +16,7 @@ export default function AuthSimpleLayout({
                 ===================================================== */}
                 <section className="relative z-20 flex min-h-dvh w-full flex-col bg-white lg:min-h-0 lg:w-[44%] lg:rounded-r-[32px]">
 
-                    {/* subtle top accent */}
-                    <div className="absolute left-0 top-0 h-1 w-full bg-[#303087]" />
+                   
 
                     {/* Login */}
                     <main className="flex flex-1 items-center justify-center px-6 py-12 sm:px-10 lg:px-12 xl:px-16">
@@ -28,12 +27,12 @@ export default function AuthSimpleLayout({
                                 <Link
                                     href="/"
                                     aria-label="BHF Rural Bank"
-                                    className="group flex h-[88px] w-[158px] items-center justify-center rounded-[22px] border border-slate-100 bg-[#f8fafc] px-5 shadow-[0_18px_45px_-30px_rgba(41,41,111,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_-28px_rgba(41,41,111,0.4)]"
+                                    className="group flex h-[88px] w-[158px] items-center justify-center "
                                 >
                                     <img
                                         src={bhfLogo}
                                         alt="BHF Rural Bank"
-                                        className="h-[62px] w-auto object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                                        className="h-[62px] w-auto object-contain "
                                     />
                                 </Link>
                             </div>

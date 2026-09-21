@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             OrganizationalUnitSeeder::class,
             PositionSeeder::class,
+            TestAccountSeeder::class,
         ]);
     }
 }
