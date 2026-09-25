@@ -694,13 +694,13 @@ export default function Dashboard() {
                             </div>
 
                             {role !== 'admin' && (
-                                <Button
-                                    size="sm"
-                                    className="h-10 shrink-0 rounded-lg bg-blue-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
-                                >
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    New Request
-                                </Button>
+                       <Button
+                            size="sm"
+                            className="cursor-pointer h-10 shrink-0 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#123052] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#173B67]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <FileText className="mr-2 h-4 w-4" />
+                            New Request
+                        </Button>
                             )}
                         </div>
                     </header>
