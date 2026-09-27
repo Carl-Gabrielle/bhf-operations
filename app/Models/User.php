@@ -49,6 +49,8 @@ use Spatie\Permission\Traits\HasRoles;
     'organizational_unit_id',
     'position_id',
     'account_status',
+    'password',
+    'password_changed_at',
 ])]
 #[Hidden([
     'password',

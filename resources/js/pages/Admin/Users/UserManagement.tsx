@@ -55,6 +55,7 @@ import type {
     OrganizationalUnit,
     PaginatedUsers,
 } from '@/types/auth';
+import { route } from 'ziggy-js';
 
 /*
 |--------------------------------------------------------------------------
@@ -708,11 +709,15 @@ export default function UserManagement({
                         </div>
 
                         <Button
-                            type="button"
-                            className="h-10 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#123052]"
-                        >
-                            Add user
-                        </Button>
+                        type="button"
+                        className="h-10 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#123052]"
+                    >  
+                    
+                        <Link href="/admin/users/create">
+                        Add User
+                    </Link>
+                           
+                    </Button>
                     </header>
 
                     {/* Search + Filters */}

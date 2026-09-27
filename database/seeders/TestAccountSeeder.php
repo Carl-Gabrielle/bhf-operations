@@ -111,6 +111,7 @@ class TestAccountSeeder extends Seeder
                 'position' => 'MIS Staff',
                 'organizational_unit' => '999', // Corporate
             ],
+            
         ];
 
         foreach ($accounts as $account) {

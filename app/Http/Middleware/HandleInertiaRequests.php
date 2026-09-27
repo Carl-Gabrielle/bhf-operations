@@ -37,6 +37,23 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Flash Messages
+        |--------------------------------------------------------------------------
+        */
+
+        $flash = [
+            'success' => fn () => $request->session()->get('success'),
+            'error' => fn () => $request->session()->get('error'),
+        ];
+
+        /*
+        |--------------------------------------------------------------------------
+        | Guest
+        |--------------------------------------------------------------------------
+        */
+
         if (!$user) {
             return [
                 ...parent::share($request),
@@ -44,8 +61,16 @@ class HandleInertiaRequests extends Middleware
                 'auth' => [
                     'user' => null,
                 ],
+
+                'flash' => $flash,
             ];
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RBAC
+        |--------------------------------------------------------------------------
+        */
 
         $roles = $user->getRoleNames()
             ->values()
@@ -55,6 +80,12 @@ class HandleInertiaRequests extends Middleware
             ->pluck('name')
             ->values()
             ->toArray();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Shared Data
+        |--------------------------------------------------------------------------
+        */
 
         return [
             ...parent::share($request),
@@ -81,16 +112,21 @@ class HandleInertiaRequests extends Middleware
                     |--------------------------------------------------------------------------
                     */
 
-                    // Primary role
                     'role' => $roles[0] ?? null,
 
-                    // All assigned roles
                     'roles' => $roles,
 
-                    // All permissions inherited/directly assigned
                     'permissions' => $permissions,
                 ],
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Flash Messages
+            |--------------------------------------------------------------------------
+            */
+
+            'flash' => $flash,
         ];
     }
 }

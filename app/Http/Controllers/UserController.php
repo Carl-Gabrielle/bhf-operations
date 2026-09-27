@@ -62,6 +62,39 @@ class UserController extends Controller
         ]);
     }
 
+/**
+ * Display the user creation form.
+ */
+public function create(): Response
+{
+    $organizationalUnits = OrganizationalUnit::query()
+        ->orderBy('code')
+        ->get([
+            'id',
+            'code',
+            'name',
+        ]);
+
+    $positions = \App\Models\Position::query()
+        ->orderBy('name')
+        ->get([
+            'id',
+            'name',
+        ]);
+
+    $roles = \Spatie\Permission\Models\Role::query()
+        ->orderBy('name')
+        ->get([
+            'id',
+            'name',
+        ]);
+
+    return Inertia::render('Admin/Users/Create', [
+        'organizationalUnits' => $organizationalUnits,
+        'positions' => $positions,
+        'roles' => $roles,
+    ]);
+}
     /**
      * Store a new user.
      */
@@ -183,9 +216,7 @@ class UserController extends Controller
             'account_status' =>
                 $validated['account_status'],
 
-            'password' =>
-                bcrypt($validated['password']),
-
+              'password' => $validated['password'],
             'password_changed_at' => now(),
         ]);
 

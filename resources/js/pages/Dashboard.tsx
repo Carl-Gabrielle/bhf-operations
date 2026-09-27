@@ -9,12 +9,12 @@ import {
     FileText,
     Plane,
     Search,
+    ShieldCheck,
     TrendingUp,
     Users,
-    ShieldCheck,
 } from 'lucide-react';
 import type { ElementType } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
     flexRender,
@@ -77,6 +77,7 @@ interface StatItem {
     value: string;
     description: string;
     icon: ElementType;
+    accent: 'purple' | 'blue' | 'yellow' | 'green';
 }
 
 interface QuickActionItem {
@@ -94,7 +95,25 @@ interface RoleConfig {
 
 /*
 |--------------------------------------------------------------------------
-| Temporary dashboard data
+| Brand
+|--------------------------------------------------------------------------
+|
+| BHF Rural Bank palette:
+| Purple  #3F2A8F
+| Blue    #4B7BC0
+| Yellow  #F0E600
+|--------------------------------------------------------------------------
+*/
+
+const brand = {
+    purple: '#3F2A8F',
+    blue: '#4B7BC0',
+    yellow: '#F0E600',
+};
+
+/*
+|--------------------------------------------------------------------------
+| Dashboard data
 |--------------------------------------------------------------------------
 */
 
@@ -141,12 +160,6 @@ const requests: RequestItem[] = [
     },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| Role configuration
-|--------------------------------------------------------------------------
-*/
-
 const roleConfig: Record<Role, RoleConfig> = {
     admin: {
         title: 'Administrator',
@@ -171,7 +184,6 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
-
     coo: {
         title: 'Executive overview',
         description:
@@ -195,7 +207,6 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
-
     hr: {
         title: 'Human resources',
         description:
@@ -224,7 +235,6 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
-
     manager: {
         title: 'Team operations',
         description:
@@ -253,7 +263,6 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
-
     employee: {
         title: 'Your workspace',
         description:
@@ -284,12 +293,6 @@ const roleConfig: Record<Role, RoleConfig> = {
     },
 };
 
-/*
-|--------------------------------------------------------------------------
-| Role-based statistics
-|--------------------------------------------------------------------------
-*/
-
 const roleStats: Record<Role, StatItem[]> = {
     admin: [
         {
@@ -297,132 +300,148 @@ const roleStats: Record<Role, StatItem[]> = {
             value: '50',
             description: 'Active system users',
             icon: Users,
+            accent: 'purple',
         },
         {
             label: 'Pending access',
             value: '3',
             description: 'Needs your review',
             icon: ShieldCheck,
+            accent: 'yellow',
         },
         {
             label: 'Active roles',
             value: '5',
             description: 'Configured roles',
             icon: FileText,
+            accent: 'blue',
         },
         {
             label: 'System alerts',
             value: '2',
             description: 'Requires attention',
             icon: Bell,
+            accent: 'yellow',
         },
     ],
-
     coo: [
         {
             label: 'Pending approvals',
             value: '12',
             description: 'Needs your review',
             icon: FileText,
+            accent: 'purple',
         },
         {
             label: 'Leave requests',
             value: '8',
             description: 'Across organization',
             icon: CalendarDays,
+            accent: 'blue',
         },
         {
             label: 'Time requests',
             value: '5',
             description: 'Overtime & undertime',
             icon: Clock3,
+            accent: 'yellow',
         },
         {
             label: 'Travel orders',
             value: '4',
             description: 'Awaiting approval',
             icon: Plane,
+            accent: 'blue',
         },
     ],
-
     hr: [
         {
             label: 'Pending requests',
             value: '12',
             description: 'Needs your review',
             icon: FileText,
+            accent: 'purple',
         },
         {
             label: 'Leave requests',
             value: '8',
             description: '3 awaiting approval',
             icon: CalendarDays,
+            accent: 'blue',
         },
         {
             label: 'Time requests',
             value: '5',
             description: 'Overtime & undertime',
             icon: Clock3,
+            accent: 'yellow',
         },
         {
             label: 'Travel orders',
             value: '4',
             description: '2 awaiting approval',
             icon: Plane,
+            accent: 'blue',
         },
     ],
-
     manager: [
         {
             label: 'Pending approvals',
             value: '6',
             description: 'Needs your review',
             icon: FileText,
+            accent: 'purple',
         },
         {
             label: 'Team members',
             value: '8',
             description: 'Within your scope',
             icon: Users,
+            accent: 'blue',
         },
         {
             label: 'Leave requests',
             value: '4',
             description: 'From your team',
             icon: CalendarDays,
+            accent: 'yellow',
         },
         {
             label: 'Time requests',
             value: '3',
             description: 'Awaiting review',
             icon: Clock3,
+            accent: 'purple',
         },
     ],
-
     employee: [
         {
             label: 'Pending requests',
             value: '2',
             description: 'Awaiting approval',
             icon: FileText,
+            accent: 'purple',
         },
         {
             label: 'Approved requests',
             value: '8',
             description: 'This year',
             icon: ShieldCheck,
+            accent: 'blue',
         },
         {
             label: 'Leave balance',
             value: '12',
             description: 'Available days',
             icon: CalendarDays,
+            accent: 'yellow',
         },
         {
             label: 'Travel orders',
             value: '1',
             description: 'Active request',
             icon: Plane,
+            accent: 'blue',
         },
     ],
 };
@@ -446,42 +465,80 @@ function formatRole(role: Role) {
     switch (role) {
         case 'admin':
             return 'Administrator';
-
         case 'coo':
             return 'COO';
-
         case 'hr':
             return 'HR Administrator';
-
         case 'manager':
             return 'Manager / Head';
-
         case 'employee':
             return 'Employee';
-
         default:
             return 'User';
     }
 }
 
 function StatusBadge({ status }: { status: Status }) {
-    const styles: Record<Status, string> = {
-        Approved:
-            'border-emerald-200 bg-emerald-50 text-emerald-700',
-        Pending:
-            'border-amber-200 bg-amber-50 text-amber-700',
-        Rejected:
-            'border-rose-200 bg-rose-50 text-rose-700',
+    const styles: Record<
+        Status,
+        { wrapper: string; dot: string }
+    > = {
+        Approved: {
+            wrapper:
+                'border-emerald-200 bg-emerald-50 text-emerald-700',
+            dot: 'bg-emerald-500',
+        },
+        Pending: {
+            wrapper:
+                'border-[#F0E600]/70 bg-[#FFFDE7] text-[#786F00]',
+            dot: 'bg-[#D2C900]',
+        },
+        Rejected: {
+            wrapper: 'border-rose-200 bg-rose-50 text-rose-700',
+            dot: 'bg-rose-500',
+        },
     };
+
+    const style = styles[status];
 
     return (
         <Badge
             variant="outline"
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${styles[status]}`}
+            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${style.wrapper}`}
         >
+            <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${style.dot}`} />
             {status}
         </Badge>
     );
+}
+
+function getStatAccent(accent: StatItem['accent']) {
+    switch (accent) {
+        case 'purple':
+            return {
+                bar: 'bg-[#3F2A8F]',
+                icon: 'bg-[#F2EFFC] text-[#3F2A8F]',
+                glow: 'ring-[#3F2A8F]/10',
+            };
+        case 'blue':
+            return {
+                bar: 'bg-[#4B7BC0]',
+                icon: 'bg-[#EEF5FC] text-[#3567A8]',
+                glow: 'ring-[#4B7BC0]/10',
+            };
+        case 'yellow':
+            return {
+                bar: 'bg-[#E5DA00]',
+                icon: 'bg-[#FFFDE7] text-[#857B00]',
+                glow: 'ring-[#E5DA00]/15',
+            };
+        case 'green':
+            return {
+                bar: 'bg-emerald-500',
+                icon: 'bg-emerald-50 text-emerald-700',
+                glow: 'ring-emerald-500/10',
+            };
+    }
 }
 
 /*
@@ -501,12 +558,39 @@ export default function Dashboard() {
 
     const [sorting, setSorting] = useState<SortingState>([]);
     const [globalFilter, setGlobalFilter] = useState('');
+    const [now, setNow] = useState(() => new Date());
+
+    /*
+    |--------------------------------------------------------------------------
+    | Live date/time
+    |--------------------------------------------------------------------------
+    */
+
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            setNow(new Date());
+        }, 1000);
+
+        return () => window.clearInterval(timer);
+    }, []);
+
+    const formattedDate = now.toLocaleDateString('en-PH', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+
+    const formattedTime = now.toLocaleTimeString('en-PH', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    });
 
     const columns = useMemo<ColumnDef<RequestItem>[]>(
         () => [
             {
                 accessorKey: 'type',
-
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -515,29 +599,25 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-xs font-semibold text-slate-500 hover:bg-transparent hover:text-slate-800"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Request
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
-
                 cell: ({ row }) => (
-                    <div className="min-w-[170px]">
-                        <p className="text-sm font-semibold text-slate-800">
+                    <div className="min-w-[180px]">
+                        <p className="text-sm font-semibold tracking-tight text-slate-800">
                             {row.original.type}
                         </p>
-
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">
                             {row.original.id}
                         </p>
                     </div>
                 ),
             },
-
             {
                 accessorKey: 'employee',
-
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -546,17 +626,16 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-xs font-semibold text-slate-500 hover:bg-transparent hover:text-slate-800"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Employee
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
-
                 cell: ({ row }) => (
                     <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className="bg-slate-100 text-[10px] font-bold text-slate-600">
+                        <Avatar className="h-9 w-9 shrink-0 ring-2 ring-white">
+                            <AvatarFallback className="bg-[#F2EFFC] text-[10px] font-bold text-[#3F2A8F]">
                                 {getInitials(row.original.employee)}
                             </AvatarFallback>
                         </Avatar>
@@ -565,7 +644,6 @@ export default function Dashboard() {
                             <p className="truncate text-sm font-medium text-slate-700">
                                 {row.original.employee}
                             </p>
-
                             <p className="truncate text-xs text-slate-400">
                                 {row.original.department}
                             </p>
@@ -573,10 +651,8 @@ export default function Dashboard() {
                     </div>
                 ),
             },
-
             {
                 accessorKey: 'date',
-
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -585,23 +661,20 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-xs font-semibold text-slate-500 hover:bg-transparent hover:text-slate-800"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Date
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
-
                 cell: ({ row }) => (
                     <span className="whitespace-nowrap text-sm text-slate-500">
                         {row.original.date}
                     </span>
                 ),
             },
-
             {
                 accessorKey: 'status',
-
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -610,31 +683,27 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-xs font-semibold text-slate-500 hover:bg-transparent hover:text-slate-800"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Status
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
-
                 cell: ({ row }) => (
                     <StatusBadge status={row.original.status} />
                 ),
             },
-
             {
                 id: 'actions',
                 enableSorting: false,
                 enableGlobalFilter: false,
-
                 header: () => null,
-
                 cell: () => (
                     <div className="flex justify-end">
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                            className="h-8 w-8 rounded-full text-slate-300 transition-colors hover:bg-[#F2EFFC] hover:text-[#3F2A8F]"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -648,15 +717,12 @@ export default function Dashboard() {
     const table = useReactTable({
         data: requests,
         columns,
-
         state: {
             sorting,
             globalFilter,
         },
-
         onSortingChange: setSorting,
         onGlobalFilterChange: setGlobalFilter,
-
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
@@ -668,144 +734,177 @@ export default function Dashboard() {
         <>
             <Head title="Dashboard" />
 
-            <div className="min-h-full bg-slate-50 text-slate-900">
-                <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <div className="min-h-full bg-[#F7F8FA] text-slate-900">
+                <main className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+                    {/* Header */}
+                    <header className="mb-6">
+                        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,.28)]">
+                            {/* Small BHF-inspired color accents */}
+                            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-[#3F2A8F] via-[#4B7BC0] to-[#F0E600]" />
+                            <div className="absolute right-0 top-0 h-32 w-32 translate-x-1/3 -translate-y-1/3 rounded-full bg-[#F0E600]/10 blur-2xl" />
 
-                    {/* =====================================================
-                        PAGE HEADER
-                    ====================================================== */}
+                            <div className="relative flex flex-col gap-6 px-6 py-7 sm:px-8 sm:py-8 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0">
+                                    <div className="mb-3 flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-[#3F2A8F]" />
+                                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                            {formatRole(role)}
+                                        </span>
+                                    </div>
 
-                    <header className="mb-7">
-                        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                            <div className="min-w-0">
-                                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-400">
-                                    <span>Dashboard</span>
-                                    <span className="text-slate-300">/</span>
-                                    <span>{formatRole(role)}</span>
+                                    <h1 className="text-3xl font-semibold leading-tight tracking-[-0.035em] text-slate-950 sm:text-4xl">
+                                        Good morning,{' '}
+                                        <span className="text-[#3F2A8F]">
+                                            {user.name}
+                                        </span>
+                                    </h1>
+
+                                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                                        {config.description}
+                                    </p>
                                 </div>
 
-                                <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-[28px]">
-                                    Good morning, {user.name}
-                                </h1>
+                                <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center">
+                                    {/* Date + time badge */}
+                                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F2EFFC] text-[#3F2A8F]">
+                                            <Clock3
+                                                className="h-4 w-4"
+                                                strokeWidth={1.8}
+                                            />
+                                        </div>
 
-                                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                                    {config.description}
-                                </p>
+                                        <div>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                                {formattedDate}
+                                            </p>
+                                            <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-800">
+                                                {formattedTime}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {role !== 'admin' && (
+                                        <Button
+                                            size="sm"
+                                            className="h-11 rounded-xl bg-[#3F2A8F] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#322176] focus-visible:ring-2 focus-visible:ring-[#3F2A8F]/30"
+                                        >
+                                            <FileText className="mr-2 h-4 w-4" />
+                                            New Request
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
-
-                            {role !== 'admin' && (
-                       <Button
-                            size="sm"
-                            className="cursor-pointer h-10 shrink-0 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#123052] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#173B67]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            <FileText className="mr-2 h-4 w-4" />
-                            New Request
-                        </Button>
-                            )}
                         </div>
                     </header>
 
-                    {/* =====================================================
-                        KPI CARDS
-                    ====================================================== */}
-
+                    {/* KPI cards */}
                     <section className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        {stats.map((stat) => (
-                            <div
-                                key={stat.label}
-                                className="group rounded-xl border border-slate-200/90 bg-white px-5 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-colors hover:border-slate-300"
-                            >
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-medium text-slate-500">
-                                            {stat.label}
-                                        </p>
+                        {stats.map((stat) => {
+                            const accent = getStatAccent(stat.accent);
 
-                                        <p className="mt-2 text-[28px] font-semibold leading-none tracking-tight text-slate-950 tabular-nums">
-                                            {stat.value}
-                                        </p>
+                            return (
+                                <div
+                                    key={stat.label}
+                                    className={`group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_6px_24px_-20px_rgba(15,23,42,.28)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_30px_-22px_rgba(15,23,42,.32)]`}
+                                >
+                                    <div
+                                        className={`absolute left-0 top-0 h-0.5 w-full ${accent.bar}`}
+                                    />
 
-                                        <p className="mt-2 text-xs text-slate-400">
-                                            {stat.description}
-                                        </p>
-                                    </div>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                                {stat.label}
+                                            </p>
 
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                                        <stat.icon
-                                            className="h-4 w-4"
-                                            strokeWidth={1.8}
-                                        />
+                                            <p className="mt-3 text-[32px] font-semibold leading-none tracking-[-0.04em] text-slate-950 tabular-nums">
+                                                {stat.value}
+                                            </p>
+
+                                            <p className="mt-2 text-xs text-slate-400">
+                                                {stat.description}
+                                            </p>
+                                        </div>
+
+                                        <div
+                                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accent.icon} ring-1 ${accent.glow}`}
+                                        >
+                                            <stat.icon
+                                                className="h-[18px] w-[18px]"
+                                                strokeWidth={1.8}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </section>
 
-                    {/* =====================================================
-                        TOOLBAR
-                    ====================================================== */}
-
-                    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="relative w-full sm:max-w-[360px]">
-                            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                            <Input
-                                value={globalFilter}
-                                onChange={(event) =>
-                                    setGlobalFilter(event.target.value)
-                                }
-                                placeholder={
-                                    role === 'employee'
-                                        ? 'Search your requests...'
-                                        : 'Search requests, employees...'
-                                }
-                                className="h-10 rounded-lg border-slate-200 bg-white pl-10 text-sm text-slate-700 shadow-none placeholder:text-slate-400 focus-visible:border-slate-400 focus-visible:ring-2 focus-visible:ring-slate-200"
-                            />
-                        </div>
-
-                        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 sm:w-auto">
-                            <Bell className="h-4 w-4" />
-
-                            <span>Notifications</span>
-
-                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-900 px-1.5 text-[10px] font-semibold text-white">
-                                4
-                            </span>
-                        </button>
-                    </div>
-
-                    {/* =====================================================
-                        MAIN CONTENT
-                    ====================================================== */}
-
-                    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-
-                        {/* =================================================
-                            REQUESTS
-                        ================================================== */}
-
+                    {/* Main workspace */}
+                    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
+                        {/* Requests */}
                         <section className="min-w-0">
-                            <div className="mb-3 flex items-center justify-between">
+                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                                 <div>
-                                    <h2 className="text-base font-semibold text-slate-950">
-                                        {config.requestTitle}
-                                    </h2>
+                                    <div className="flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-[#3F2A8F]" />
+                                        <h2 className="text-lg font-semibold tracking-[-0.025em] text-slate-950">
+                                            {config.requestTitle}
+                                        </h2>
+                                    </div>
 
-                                    <p className="mt-0.5 text-xs text-slate-400">
+                                    <p className="mt-1.5 text-xs leading-5 text-slate-400">
                                         Recent activity across your workspace
                                     </p>
                                 </div>
 
-                                <button className="flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950">
-                                    View all
-                                    <ArrowUpRight className="h-3.5 w-3.5" />
-                                </button>
+                                <div className="flex w-full items-center gap-2 sm:w-auto">
+                                    <div className="relative min-w-0 flex-1 sm:w-[270px]">
+                                        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                                        <Input
+                                            value={globalFilter}
+                                            onChange={(event) =>
+                                                setGlobalFilter(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder={
+                                                role === 'employee'
+                                                    ? 'Search your requests...'
+                                                    : 'Search requests, employees...'
+                                            }
+                                            className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm shadow-none placeholder:text-slate-400 focus-visible:border-[#3F2A8F]/40 focus-visible:ring-2 focus-visible:ring-[#3F2A8F]/10"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#3F2A8F]/20 hover:bg-[#F2EFFC] hover:text-[#3F2A8F]"
+                                        aria-label="Notifications"
+                                    >
+                                        <Bell className="h-4 w-4" />
+
+                                        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-[#F7F8FA] bg-[#F0E600] px-1 text-[8px] font-bold text-[#403A00]">
+                                            4
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+                            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,.25)]">
+                                <div className="flex items-center justify-end border-b border-slate-100 px-5 py-3 sm:px-6">
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-[#3F2A8F]"
+                                    >
+                                        View all
+                                        <ArrowUpRight className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
 
-                                {/* DESKTOP TABLE */}
-
+                                {/* Desktop */}
                                 <div className="hidden overflow-x-auto md:block">
                                     <Table>
                                         <TableHeader>
@@ -814,7 +913,7 @@ export default function Dashboard() {
                                                 .map((headerGroup) => (
                                                     <TableRow
                                                         key={headerGroup.id}
-                                                        className="border-b border-slate-200 bg-slate-50/70 hover:bg-slate-50/70"
+                                                        className="border-b border-slate-100 bg-slate-50/70 hover:bg-slate-50/70"
                                                     >
                                                         {headerGroup.headers.map(
                                                             (header) => (
@@ -822,7 +921,7 @@ export default function Dashboard() {
                                                                     key={
                                                                         header.id
                                                                     }
-                                                                    className="h-11 px-5"
+                                                                    className="h-12 px-5"
                                                                 >
                                                                     {header.isPlaceholder
                                                                         ? null
@@ -845,7 +944,7 @@ export default function Dashboard() {
                                                 filteredRows.map((row) => (
                                                     <TableRow
                                                         key={row.id}
-                                                        className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/70"
+                                                        className="border-b border-slate-100/80 transition-colors last:border-0 hover:bg-[#FAF9FE]"
                                                     >
                                                         {row
                                                             .getVisibleCells()
@@ -870,9 +969,7 @@ export default function Dashboard() {
                                             ) : (
                                                 <TableRow>
                                                     <TableCell
-                                                        colSpan={
-                                                            columns.length
-                                                        }
+                                                        colSpan={columns.length}
                                                         className="h-32 text-center text-sm text-slate-400"
                                                     >
                                                         No requests match your
@@ -884,8 +981,7 @@ export default function Dashboard() {
                                     </Table>
                                 </div>
 
-                                {/* MOBILE */}
-
+                                {/* Mobile */}
                                 <div className="divide-y divide-slate-100 md:hidden">
                                     {filteredRows.length > 0 ? (
                                         filteredRows.map((row) => {
@@ -894,10 +990,10 @@ export default function Dashboard() {
                                             return (
                                                 <div
                                                     key={request.id}
-                                                    className="flex items-center gap-3.5 px-4 py-4 transition-colors hover:bg-slate-50"
+                                                    className="flex items-center gap-3.5 px-4 py-4 transition-colors hover:bg-[#FAF9FE]"
                                                 >
-                                                    <Avatar className="h-9 w-9 shrink-0">
-                                                        <AvatarFallback className="bg-slate-100 text-[10px] font-semibold text-slate-600">
+                                                    <Avatar className="h-10 w-10 shrink-0">
+                                                        <AvatarFallback className="bg-[#F2EFFC] text-[10px] font-semibold text-[#3F2A8F]">
                                                             {getInitials(
                                                                 request.employee,
                                                             )}
@@ -927,11 +1023,10 @@ export default function Dashboard() {
                                                             />
                                                         </div>
 
-                                                        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-400">
+                                                        <div className="mt-2.5 flex items-center justify-between gap-3 text-[11px] text-slate-400">
                                                             <span>
                                                                 {request.id}
                                                             </span>
-
                                                             <span>
                                                                 {request.date}
                                                             </span>
@@ -949,17 +1044,16 @@ export default function Dashboard() {
                             </div>
                         </section>
 
-                        {/* =================================================
-                            SIDEBAR
-                        ================================================== */}
-
+                        {/* Sidebar */}
                         <aside className="space-y-5">
-
-                            {/* QUICK ACTIONS */}
-
-                            <section className="rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+                            {/* Quick actions */}
+                            <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,.25)]">
                                 <div className="border-b border-slate-100 px-5 py-4">
-                                    <h2 className="text-sm font-semibold text-slate-950">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4B7BC0]">
+                                        Shortcuts
+                                    </p>
+
+                                    <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-slate-950">
                                         Quick actions
                                     </h2>
 
@@ -969,126 +1063,90 @@ export default function Dashboard() {
                                 </div>
 
                                 <div className="p-2">
-                                    {config.quickActions.map((action) => (
-                                        <button
-                                            key={action.title}
-                                            className="group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:bg-slate-50"
-                                        >
-                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-slate-200 group-hover:text-slate-800">
-                                                <action.icon
-                                                    className="h-4 w-4"
-                                                    strokeWidth={1.8}
-                                                />
-                                            </div>
+                                    {config.quickActions.map(
+                                        (action, index) => (
+                                            <button
+                                                type="button"
+                                                key={action.title}
+                                                className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-slate-50"
+                                            >
+                                                <div
+                                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                                                        index % 3 === 0
+                                                            ? 'bg-[#F2EFFC] text-[#3F2A8F] group-hover:bg-[#3F2A8F] group-hover:text-white'
+                                                            : index % 3 === 1
+                                                              ? 'bg-[#EEF5FC] text-[#3567A8] group-hover:bg-[#4B7BC0] group-hover:text-white'
+                                                              : 'bg-[#FFFDE7] text-[#857B00] group-hover:bg-[#F0E600] group-hover:text-[#4A4300]'
+                                                    }`}
+                                                >
+                                                    <action.icon
+                                                        className="h-4 w-4"
+                                                        strokeWidth={1.8}
+                                                    />
+                                                </div>
 
-                                            <div className="min-w-0 flex-1">
-                                                <p className="truncate text-sm font-medium text-slate-800">
-                                                    {action.title}
-                                                </p>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-semibold text-slate-800">
+                                                        {action.title}
+                                                    </p>
 
-                                                <p className="mt-0.5 truncate text-xs text-slate-400">
-                                                    {action.description}
-                                                </p>
-                                            </div>
+                                                    <p className="mt-0.5 truncate text-xs text-slate-400">
+                                                        {action.description}
+                                                    </p>
+                                                </div>
 
-                                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" />
-                                        </button>
-                                    ))}
+                                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-[#3F2A8F]" />
+                                            </button>
+                                        ),
+                                    )}
                                 </div>
                             </section>
 
-                            {/* ACCESS */}
+                            {/* Access */}
+                            <section className="overflow-hidden rounded-2xl bg-[#171326] p-5 text-white shadow-[0_12px_35px_-24px_rgba(15,23,42,.45)]">
+                                <div className="mb-4 h-1 w-16 rounded-full bg-gradient-to-r from-[#3F2A8F] via-[#4B7BC0] to-[#F0E600]" />
 
-                            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-                                <div className="flex items-start gap-3">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                                        <ShieldCheck
-                                            className="h-4 w-4"
-                                            strokeWidth={1.8}
-                                        />
-                                    </div>
-
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#B9AFFF]">
                                             Access
                                         </p>
 
-                                        <h2 className="mt-1 truncate text-sm font-semibold text-slate-900">
-                                            {user.position ||
-                                                formatRole(role)}
+                                        <h2 className="mt-1 text-lg font-semibold tracking-[-0.025em]">
+                                            {user.position || formatRole(role)}
                                         </h2>
+                                    </div>
+
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-[#D8D0FF]">
+                                        <ShieldCheck className="h-5 w-5" />
                                     </div>
                                 </div>
 
-                                <p className="mt-4 text-sm leading-6 text-slate-500">
+                                <p className="mt-4 text-sm leading-6 text-slate-300">
                                     {config.title}. Your dashboard content is
                                     based on your assigned access level.
                                 </p>
 
-                                <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-                                    <div className="flex items-center justify-between gap-4">
-                                        <span className="text-xs text-slate-400">
+                                <div className="mt-5 grid grid-cols-2 gap-2">
+                                    <div className="rounded-xl bg-white/[0.06] p-3">
+                                        <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
                                             Role
-                                        </span>
+                                        </p>
 
-                                        <span className="text-sm font-medium capitalize text-slate-700">
+                                        <p className="mt-1.5 text-sm font-semibold capitalize text-white">
                                             {role}
-                                        </span>
+                                        </p>
                                     </div>
 
-                                    <div className="flex items-center justify-between gap-4">
-                                        <span className="text-xs text-slate-400">
+                                    <div className="rounded-xl bg-white/[0.06] p-3">
+                                        <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
                                             Access
-                                        </span>
+                                        </p>
 
-                                        <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                        <p className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                                             Authorized
-                                        </span>
-                                    </div>
-                                </div>
-                            </section>
-
-                            {/* REQUEST STATUS */}
-
-                            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-                                <div className="flex items-start gap-3">
-                                    <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-teal-600" />
-
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-900">
-                                            {role === 'employee'
-                                                ? 'Request status'
-                                                : 'Approval reminder'}
                                         </p>
-
-                                        <p className="mt-2 text-sm leading-6 text-slate-500">
-                                            {role === 'employee' ? (
-                                                <>
-                                                    You currently have{' '}
-                                                    <span className="font-semibold text-slate-800">
-                                                        2 requests
-                                                    </span>{' '}
-                                                    awaiting approval.
-                                                </>
-                                            ) : (
-                                                <>
-                                                    There are{' '}
-                                                    <span className="font-semibold text-slate-800">
-                                                        12 requests
-                                                    </span>{' '}
-                                                    waiting for review.
-                                                </>
-                                            )}
-                                        </p>
-
-                                        <button className="mt-3 flex items-center gap-1.5 text-sm font-medium text-slate-700 transition-colors hover:text-slate-950">
-                                            {role === 'employee'
-                                                ? 'View requests'
-                                                : 'Review requests'}
-
-                                            <ArrowUpRight className="h-3.5 w-3.5" />
-                                        </button>
                                     </div>
                                 </div>
                             </section>
