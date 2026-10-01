@@ -51,6 +51,7 @@ use Spatie\Permission\Traits\HasRoles;
     'account_status',
     'password',
     'password_changed_at',
+    'must_change_password',
 ])]
 #[Hidden([
     'password',
@@ -71,6 +72,7 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
+            'must_change_password' => 'boolean',
         ];
     }
 

@@ -9,8 +9,9 @@ class DashboardController extends Controller
 {
     public function index(): Response
     {
+        
         $user = auth()->user();
-
+     
         return Inertia::render('Dashboard', [
             'user' => [
                 'id' => $user->id,

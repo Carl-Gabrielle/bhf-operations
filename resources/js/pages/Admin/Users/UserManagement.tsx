@@ -525,12 +525,12 @@ export default function UserManagement({
                             size="icon"
                             className="h-8 w-8 rounded-md text-slate-400 hover:bg-slate-100 hover:text-[#173B67]"
                         >
-                            <Link
-                                href={`/admin/users/${row.original.id}`}
-                                aria-label={`View ${row.original.name}`}
-                            >
-                                <Eye className="h-4 w-4" />
-                            </Link>
+                           <Link
+                            href={`/admin/users/${row.original.id}`}
+                            aria-label={`View ${row.original.name}`}
+                        >
+                            <Eye className="h-4 w-4" />
+                        </Link>
                         </Button>
                     ),
                 },

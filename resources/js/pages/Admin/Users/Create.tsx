@@ -1,28 +1,52 @@
-import React from 'react';
+import { FormEvent, type ReactNode, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-type OrganizationalUnit = {
+import {
+    ArrowLeft,
+    Building2,
+    Check,
+    Eye,
+    EyeOff,
+    KeyRound,
+    LockKeyhole,
+    Mail,
+    ShieldCheck,
+    UserRound,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+
+/*
+|--------------------------------------------------------------------------
+| Types
+|--------------------------------------------------------------------------
+*/
+
+interface OrganizationalUnit {
     id: number;
     code: string;
     name: string;
-};
+}
 
-type Position = {
+interface Position {
     id: number;
     name: string;
-};
+}
 
-type Role = {
+interface Role {
     id: number;
     name: string;
-};
+}
 
-type Props = {
-    organizationalUnits: OrganizationalUnit[];
-    positions: Position[];
-    roles: Role[];
-};
-
-type UserForm = {
+interface UserForm {
     username: string;
     employee_number: string;
 
@@ -42,13 +66,126 @@ type UserForm = {
 
     password: string;
     password_confirmation: string;
-};
+}
 
-export default function Create({
+interface CreateUserProps {
+    organizationalUnits: OrganizationalUnit[];
+    positions: Position[];
+    roles: Role[];
+}
+
+/*
+|--------------------------------------------------------------------------
+| Reusable Components
+|--------------------------------------------------------------------------
+*/
+
+function SectionHeader({
+    icon: Icon,
+    title,
+    description,
+}: {
+    icon: typeof UserRound;
+    title: string;
+    description: string;
+}) {
+    return (
+        <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#173B67]/[0.07] text-[#173B67]">
+                <Icon className="h-[18px] w-[18px]" />
+            </div>
+
+            <div className="min-w-0">
+                <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">
+                    {title}
+                </h2>
+
+                <p className="mt-1 text-[13px] leading-5 text-slate-500">
+                    {description}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+function Field({
+    label,
+    error,
+    required = false,
+    hint,
+    children,
+}: {
+    label: string;
+    error?: string;
+    required?: boolean;
+    hint?: string;
+    children: ReactNode;
+}) {
+    return (
+        <div className="min-w-0 space-y-1.5">
+            <label className="block text-[13px] font-medium text-slate-700">
+                {label}
+
+                {required && (
+                    <span className="ml-1 text-red-500">*</span>
+                )}
+            </label>
+
+            {children}
+
+            {hint && !error && (
+                <p className="text-[11px] leading-4 text-slate-400">
+                    {hint}
+                </p>
+            )}
+
+            {error && (
+                <p className="text-[11px] font-medium leading-4 text-red-600">
+                    {error}
+                </p>
+            )}
+        </div>
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Shared Styles
+|--------------------------------------------------------------------------
+*/
+
+const inputClass = (hasError = false) =>
+    [
+        'h-10 w-full rounded-lg bg-white px-3 text-sm shadow-none',
+        'placeholder:text-slate-400',
+        'transition-colors',
+        'focus-visible:ring-2 focus-visible:ring-[#173B67]/10',
+        hasError
+            ? 'border-red-300 focus-visible:border-red-500'
+            : 'border-slate-200 focus-visible:border-[#173B67]',
+    ].join(' ');
+
+const selectClass = (hasError = false) =>
+    [
+        'h-10 w-full rounded-lg bg-white px-3 text-sm shadow-none',
+        'transition-colors',
+        'focus:ring-2 focus:ring-[#173B67]/10',
+        hasError
+            ? 'border-red-300 focus:border-red-500'
+            : 'border-slate-200 focus:border-[#173B67]',
+    ].join(' ');
+
+/*
+|--------------------------------------------------------------------------
+| Create User
+|--------------------------------------------------------------------------
+*/
+
+export default function CreateUser({
     organizationalUnits,
     positions,
     roles,
-}: Props) {
+}: CreateUserProps) {
     const { data, setData, post, processing, errors } =
         useForm<UserForm>({
             username: '',
@@ -72,7 +209,50 @@ export default function Create({
             password_confirmation: '',
         });
 
-    const submit = (event: React.FormEvent) => {
+    const [showPassword, setShowPassword] =
+        useState(false);
+
+    const [showPasswordConfirmation, setShowPasswordConfirmation] =
+        useState(false);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    const updateName = (
+        field:
+            | 'first_name'
+            | 'middle_name'
+            | 'last_name',
+        value: string,
+    ) => {
+        const nextData = {
+            ...data,
+            [field]: value,
+        };
+
+        const fullName = [
+            nextData.first_name,
+            nextData.middle_name,
+            nextData.last_name,
+        ]
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .join(' ');
+
+        setData(field, value);
+        setData('name', fullName);
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Submit
+    |--------------------------------------------------------------------------
+    */
+
+    const submit = (event: FormEvent) => {
         event.preventDefault();
 
         post('/admin/users');
@@ -82,645 +262,673 @@ export default function Create({
         <>
             <Head title="Add User" />
 
-            <div className="min-h-screen bg-[#f7f8fa] px-4 py-6 sm:px-6 lg:px-8">
-                <div className="mx-auto max-w-6xl">
+            <div className="min-h-full bg-slate-50 text-slate-900">
+                <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
 
-                    {/* ================================================== */}
-                    {/* HEADER */}
-                    {/* ================================================== */}
+                    {/* =====================================================
+                        PAGE HEADER
+                    ====================================================== */}
 
-                    <div className="mb-8">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <header className="mb-7">
+                        <Link
+                            href="/admin/users"
+                            className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-[#173B67]"
+                        >
+                            <ArrowLeft className="h-3.5 w-3.5" />
 
-                            <div>
-                                <div className="mb-2 flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#9fbe3c]" />
+                            Back to User Management
+                        </Link>
 
-                                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-black/40">
-                                        User Management
-                                    </span>
-                                </div>
+                        <div>
+                            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-400">
+                                <span>Administration</span>
 
-                                <h1 className="text-3xl font-semibold tracking-[-0.04em] text-[#16170f]">
+                                <span className="text-slate-300">
+                                    /
+                                </span>
+
+                                <span>User Management</span>
+
+                                <span className="text-slate-300">
+                                    /
+                                </span>
+
+                                <span className="text-slate-500">
                                     Add User
-                                </h1>
-
-                                <p className="mt-2 max-w-xl text-sm leading-6 text-black/45">
-                                    Create a new user account and assign their
-                                    organizational information, role, and access
-                                    credentials.
-                                </p>
+                                </span>
                             </div>
 
-                            <Link
-                                href="/admin/users"
-                                className="
-                                    inline-flex
-                                    h-10
-                                    items-center
-                                    justify-center
-                                    rounded-xl
-                                    border
-                                    border-black/[0.08]
-                                    bg-white
-                                    px-4
-                                    text-sm
-                                    font-medium
-                                    text-black/65
-                                    shadow-sm
-                                    transition
-                                    hover:bg-black/[0.025]
-                                "
-                            >
-                                ← Back to Users
-                            </Link>
-                        </div>
-                    </div>
+                            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-[26px]">
+                                Create User Account
+                            </h1>
 
-                    {/* ================================================== */}
-                    {/* FORM */}
-                    {/* ================================================== */}
+                            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
+                                Create an employee account and assign
+                                the appropriate organization, position,
+                                role, and system access.
+                            </p>
+                        </div>
+                    </header>
+
+                    {/* =====================================================
+                        FORM
+                    ====================================================== */}
 
                     <form
                         onSubmit={submit}
-                        className="space-y-6"
+                        className="space-y-5"
                     >
 
-                        {/* ================================================== */}
-                        {/* ACCOUNT INFORMATION */}
-                        {/* ================================================== */}
+                        {/* =================================================
+                            ACCOUNT INFORMATION
+                        ================================================== */}
 
-                        <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(40,50,20,0.025)]">
+                        <section className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
 
-                            <SectionHeader
-                                number="01"
-                                title="Account Information"
-                                description="Basic credentials used to identify the account."
-                            />
+                            <div className="border-b border-slate-100 px-5 py-5 sm:px-6 lg:px-7">
+                                <SectionHeader
+                                    icon={UserRound}
+                                    title="Account Information"
+                                    description="Set the employee's login credentials and account identity."
+                                />
+                            </div>
 
-                            <div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid w-full grid-cols-1 gap-x-8 gap-y-5 px-5 py-6 sm:px-6 lg:grid-cols-2 lg:px-7">
+
+                                {/* Username */}
 
                                 <Field
                                     label="Username"
                                     required
                                     error={errors.username}
+                                    hint="Use a short, unique username for system login."
                                 >
-                                    <input
-                                value={data.username}
-                                onChange={(e) => setData('username', e.target.value)}
-                                maxLength={30}
-                                placeholder="e.g. jdelacruz"
-                                className={inputClass(!!errors.username)}
-                            />
-                                    </Field>
+                                    <Input
+                                        type="text"
+                                        name="username"
+                                        autoComplete="off"
+                                        maxLength={30}
+                                        value={data.username}
+                                        onChange={(event) =>
+                                            setData(
+                                                'username',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="e.g. jdelacruz"
+                                        className={inputClass(
+                                            !!errors.username,
+                                        )}
+                                    />
+                                </Field>
+
+                                {/* Employee Number */}
 
                                 <Field
                                     label="Employee Number"
+                                    required
                                     error={errors.employee_number}
+                                    hint="The employee's official identification number."
                                 >
-                                    <input
+                                    <Input
+                                        type="text"
+                                        name="employee_number"
                                         value={data.employee_number}
-                                        onChange={(e) =>
+                                        onChange={(event) =>
                                             setData(
                                                 'employee_number',
-                                                e.target.value
+                                                event.target.value,
                                             )
                                         }
-                                        placeholder="e.g. EMP-0001"
+                                        placeholder="e.g. EMP-2026-001"
                                         className={inputClass(
-                                            !!errors.employee_number
+                                            !!errors.employee_number,
                                         )}
                                     />
                                 </Field>
-
-                                <Field
-                                    label="Email Address"
-                                    error={errors.email}
-                                >
-                                    <input
-                                        type="email"
-                                        value={data.email}
-                                        onChange={(e) =>
-                                            setData(
-                                                'email',
-                                                e.target.value
-                                            )
-                                        }
-                                        placeholder="name@example.com"
-                                        className={inputClass(
-                                            !!errors.email
-                                        )}
-                                    />
-                                </Field>
-
                             </div>
                         </section>
 
-                        {/* ================================================== */}
-                        {/* PERSONAL INFORMATION */}
-                        {/* ================================================== */}
+                        {/* =================================================
+                            PERSONAL INFORMATION
+                        ================================================== */}
 
-                        <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(40,50,20,0.025)]">
+                        <section className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
 
-                            <SectionHeader
-                                number="02"
-                                title="Personal Information"
-                                description="Personal details associated with the user account."
-                            />
+                            <div className="border-b border-slate-100 px-5 py-5 sm:px-6 lg:px-7">
+                                <SectionHeader
+                                    icon={UserRound}
+                                    title="Personal Information"
+                                    description="Enter the employee's basic contact and identity details."
+                                />
+                            </div>
 
-                            <div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="space-y-5 px-5 py-6 sm:px-6 lg:px-7">
 
-                                <Field
-                                    label="First Name"
-                                    error={errors.first_name}
-                                >
-                                    <input
-                                        value={data.first_name}
-                                        onChange={(e) =>
-                                            setData(
-                                                'first_name',
-                                                e.target.value
-                                            )
-                                        }
-                                        placeholder="Juan"
-                                        className={inputClass(
-                                            !!errors.first_name
-                                        )}
-                                    />
-                                </Field>
+                                {/* Name */}
 
-                                <Field
-                                    label="Middle Name"
-                                    error={errors.middle_name}
-                                >
-                                    <input
-                                        value={data.middle_name}
-                                        onChange={(e) =>
-                                            setData(
-                                                'middle_name',
-                                                e.target.value
-                                            )
-                                        }
-                                        placeholder="Santos"
-                                        className={inputClass(
-                                            !!errors.middle_name
-                                        )}
-                                    />
-                                </Field>
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
 
-                                <Field
-                                    label="Last Name"
-                                    error={errors.last_name}
-                                >
-                                    <input
-                                        value={data.last_name}
-                                        onChange={(e) =>
-                                            setData(
-                                                'last_name',
-                                                e.target.value
-                                            )
-                                        }
-                                        placeholder="Dela Cruz"
-                                        className={inputClass(
-                                            !!errors.last_name
-                                        )}
-                                    />
-                                </Field>
-
-                                <Field
-                                    label="Contact Number"
-                                    error={errors.contact_number}
-                                >
-                                    <input
-                                        value={data.contact_number}
-                                        onChange={(e) =>
-                                            setData(
-                                                'contact_number',
-                                                e.target.value
-                                            )
-                                        }
-                                        placeholder="09XXXXXXXXX"
-                                        className={inputClass(
-                                            !!errors.contact_number
-                                        )}
-                                    />
-                                </Field>
-
-                                <div className="sm:col-span-2 lg:col-span-4">
                                     <Field
-                                        label="Full Name"
+                                        label="First Name"
                                         required
-                                        error={errors.name}
-                                        hint="This is the name displayed throughout the system."
+                                        error={errors.first_name}
                                     >
-                                        <input
-                                            value={data.name}
-                                            onChange={(e) =>
-                                                setData(
-                                                    'name',
-                                                    e.target.value
+                                        <Input
+                                            type="text"
+                                            name="first_name"
+                                            value={data.first_name}
+                                            onChange={(event) =>
+                                                updateName(
+                                                    'first_name',
+                                                    event.target.value,
                                                 )
                                             }
-                                            placeholder="Juan Santos Dela Cruz"
+                                            placeholder="First name"
                                             className={inputClass(
-                                                !!errors.name
+                                                !!errors.first_name,
+                                            )}
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Middle Name"
+                                        error={errors.middle_name}
+                                    >
+                                        <Input
+                                            type="text"
+                                            name="middle_name"
+                                            value={data.middle_name}
+                                            onChange={(event) =>
+                                                updateName(
+                                                    'middle_name',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Middle name"
+                                            className={inputClass(
+                                                !!errors.middle_name,
+                                            )}
+                                        />
+                                    </Field>
+
+                                    <Field
+                                        label="Last Name"
+                                        required
+                                        error={errors.last_name}
+                                    >
+                                        <Input
+                                            type="text"
+                                            name="last_name"
+                                            value={data.last_name}
+                                            onChange={(event) =>
+                                                updateName(
+                                                    'last_name',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Last name"
+                                            className={inputClass(
+                                                !!errors.last_name,
                                             )}
                                         />
                                     </Field>
                                 </div>
 
+                                {/* Contact */}
+
+                                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+                                    {/* Email */}
+
+                                    <Field
+                                        label="Email Address"
+                                        required
+                                        error={errors.email}
+                                        hint="Use the employee's official work email when available."
+                                    >
+                                        <div className="relative">
+                                            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                                            <Input
+                                                type="email"
+                                                name="email"
+                                                value={data.email}
+                                                onChange={(event) =>
+                                                    setData(
+                                                        'email',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="employee@company.com"
+                                                className={`${inputClass(
+                                                    !!errors.email,
+                                                )} pl-9`}
+                                            />
+                                        </div>
+                                    </Field>
+
+                                    {/* Contact Number */}
+
+                                    <Field
+                                        label="Contact Number"
+                                        error={errors.contact_number}
+                                    >
+                                        <Input
+                                            type="text"
+                                            name="contact_number"
+                                            value={data.contact_number}
+                                            onChange={(event) =>
+                                                setData(
+                                                    'contact_number',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="09XX XXX XXXX"
+                                            className={inputClass(
+                                                !!errors.contact_number,
+                                            )}
+                                        />
+                                    </Field>
+                                </div>
                             </div>
                         </section>
 
-                        {/* ================================================== */}
-                        {/* ORGANIZATION */}
-                        {/* ================================================== */}
+                        {/* =================================================
+                            ORGANIZATION & ACCESS
+                        ================================================== */}
 
-                        <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(40,50,20,0.025)]">
+                        <section className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
 
-                            <SectionHeader
-                                number="03"
-                                title="Organization & Access"
-                                description="Assign the user's organizational unit, position, role, and account status."
-                            />
+                            {/* Header */}
 
-                            <div className="grid gap-5 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="border-b border-slate-100 px-5 py-5 sm:px-6 lg:px-7">
+                                <SectionHeader
+                                    icon={Building2}
+                                    title="Organization & Access"
+                                    description="Assign the employee to an organization, position, and system role."
+                                />
+                            </div>
+
+                            {/* Content */}
+
+                            <div className="grid w-full grid-cols-1 gap-x-8 gap-y-6 px-5 py-7 sm:px-6 lg:grid-cols-2 lg:px-7">
+
+                                {/* Organization */}
 
                                 <Field
-                                    label="Organizational Unit"
+                                    label="Organization"
+                                    required
                                     error={
                                         errors.organizational_unit_id
                                     }
                                 >
-                                    <select
+                                    <Select
                                         value={
                                             data.organizational_unit_id
                                         }
-                                        onChange={(e) =>
+                                        onValueChange={(value) =>
                                             setData(
                                                 'organizational_unit_id',
-                                                e.target.value
+                                                value,
                                             )
                                         }
-                                        className={inputClass(
-                                            !!errors.organizational_unit_id
-                                        )}
                                     >
-                                        <option value="">
-                                            Select unit
-                                        </option>
+                                        <SelectTrigger
+                                            className={selectClass(
+                                                !!errors.organizational_unit_id,
+                                            )}
+                                        >
+                                            <SelectValue placeholder="Select organization" />
+                                        </SelectTrigger>
 
-                                        {organizationalUnits.map(
-                                            (unit) => (
-                                                <option
-                                                    key={unit.id}
-                                                    value={unit.id}
-                                                >
-                                                    {unit.code} — {unit.name}
-                                                </option>
-                                            )
-                                        )}
-                                    </select>
+                                        <SelectContent>
+                                            {organizationalUnits.map(
+                                                (organization) => (
+                                                    <SelectItem
+                                                        key={
+                                                            organization.id
+                                                        }
+                                                        value={String(
+                                                            organization.id,
+                                                        )}
+                                                    >
+                                                        {organization.code} —{' '}
+                                                        {
+                                                            organization.name
+                                                        }
+                                                    </SelectItem>
+                                                ),
+                                            )}
+                                        </SelectContent>
+                                    </Select>
                                 </Field>
+
+                                {/* Position */}
 
                                 <Field
                                     label="Position"
+                                    required
                                     error={errors.position_id}
                                 >
-                                    <select
+                                    <Select
                                         value={data.position_id}
-                                        onChange={(e) =>
+                                        onValueChange={(value) =>
                                             setData(
                                                 'position_id',
-                                                e.target.value
+                                                value,
                                             )
                                         }
-                                        className={inputClass(
-                                            !!errors.position_id
-                                        )}
                                     >
-                                        <option value="">
-                                            Select position
-                                        </option>
+                                        <SelectTrigger
+                                            className={selectClass(
+                                                !!errors.position_id,
+                                            )}
+                                        >
+                                            <SelectValue placeholder="Select position" />
+                                        </SelectTrigger>
 
-                                        {positions.map((position) => (
-                                            <option
-                                                key={position.id}
-                                                value={position.id}
-                                            >
-                                                {position.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        <SelectContent>
+                                            {positions.map((position) => (
+                                                <SelectItem
+                                                    key={position.id}
+                                                    value={String(
+                                                        position.id,
+                                                    )}
+                                                >
+                                                    {position.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </Field>
+
+                                {/* System Role */}
 
                                 <Field
-                                    label="Role"
+                                    label="System Role"
+                                    required
                                     error={errors.role}
+                                    hint="The role determines what the employee can access in the system."
                                 >
-                                    <select
+                                    <Select
                                         value={data.role}
-                                        onChange={(e) =>
-                                            setData(
-                                                'role',
-                                                e.target.value
-                                            )
+                                        onValueChange={(value) =>
+                                            setData('role', value)
                                         }
-                                        className={inputClass(
-                                            !!errors.role
-                                        )}
                                     >
-                                        <option value="">
-                                            Select role
-                                        </option>
+                                        <SelectTrigger
+                                            className={selectClass(
+                                                !!errors.role,
+                                            )}
+                                        >
+                                            <SelectValue placeholder="Select system role" />
+                                        </SelectTrigger>
 
-                                        {roles.map((role) => (
-                                            <option
-                                                key={role.id}
-                                                value={role.name}
-                                            >
-                                                {role.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                        <SelectContent>
+                                            {roles.map((role) => (
+                                                <SelectItem
+                                                    key={role.id}
+                                                    value={role.name}
+                                                >
+                                                    {role.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </Field>
+
+                                {/* Account Status */}
 
                                 <Field
                                     label="Account Status"
                                     required
                                     error={errors.account_status}
                                 >
-                                    <select
+                                    <Select
                                         value={data.account_status}
-                                        onChange={(e) =>
+                                        onValueChange={(value) =>
                                             setData(
                                                 'account_status',
-                                                e.target.value
+                                                value,
                                             )
                                         }
-                                        className={inputClass(
-                                            !!errors.account_status
-                                        )}
                                     >
-                                        <option value="active">
-                                            Active
-                                        </option>
+                                        <SelectTrigger
+                                            className={selectClass(
+                                                !!errors.account_status,
+                                            )}
+                                        >
+                                            <SelectValue placeholder="Select account status" />
+                                        </SelectTrigger>
 
-                                        <option value="inactive">
-                                            Inactive
-                                        </option>
-                                    </select>
+                                        <SelectContent>
+                                            <SelectItem value="active">
+                                                Active
+                                            </SelectItem>
+
+                                            <SelectItem value="inactive">
+                                                Inactive
+                                            </SelectItem>
+
+                                            <SelectItem value="pending">
+                                                Pending
+                                            </SelectItem>
+
+                                            <SelectItem value="suspended">
+                                                Suspended
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </Field>
-
                             </div>
                         </section>
 
-                        {/* ================================================== */}
-                        {/* PASSWORD */}
-                        {/* ================================================== */}
+                        {/* =================================================
+                            PASSWORD & SECURITY
+                        ================================================== */}
 
-                        <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(40,50,20,0.025)]">
+                        <section className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
 
-                            <SectionHeader
-                                number="04"
-                                title="Account Password"
-                                description="Set the initial password for this account."
-                            />
+                            <div className="border-b border-slate-100 px-5 py-5 sm:px-6 lg:px-7">
+                                <SectionHeader
+                                    icon={LockKeyhole}
+                                    title="Password & Security"
+                                    description="Create the initial password for the employee account."
+                                />
+                            </div>
 
-                            <div className="grid gap-5 p-5 sm:grid-cols-2">
+                            <div className="px-5 py-6 sm:px-6 lg:px-7">
 
-                                <Field
-                                    label="Password"
-                                    required
-                                    error={errors.password}
-                                    hint="Minimum 8 characters."
-                                >
-                                    <input
-                                        type="password"
-                                        value={data.password}
-                                        onChange={(e) =>
-                                            setData(
-                                                'password',
-                                                e.target.value
-                                            )
+                                <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+                                    {/* Password */}
+
+                                    <Field
+                                        label="Password"
+                                        required
+                                        error={errors.password}
+                                        hint="Choose a strong password that is difficult to guess."
+                                    >
+                                        <div className="relative">
+                                            <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                                            <Input
+                                                type={
+                                                    showPassword
+                                                        ? 'text'
+                                                        : 'password'
+                                                }
+                                                name="password"
+                                                value={data.password}
+                                                onChange={(event) =>
+                                                    setData(
+                                                        'password',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Enter password"
+                                                autoComplete="new-password"
+                                                className={`${inputClass(
+                                                    !!errors.password,
+                                                )} pl-9 pr-10`}
+                                            />
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowPassword(
+                                                        !showPassword,
+                                                    )
+                                                }
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700"
+                                                aria-label={
+                                                    showPassword
+                                                        ? 'Hide password'
+                                                        : 'Show password'
+                                                }
+                                            >
+                                                {showPassword ? (
+                                                    <EyeOff className="h-4 w-4" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </Field>
+
+                                    {/* Confirm Password */}
+
+                                    <Field
+                                        label="Confirm Password"
+                                        required
+                                        error={
+                                            errors.password_confirmation
                                         }
-                                        placeholder="Enter password"
-                                        className={inputClass(
-                                            !!errors.password
-                                        )}
-                                    />
-                                </Field>
+                                    >
+                                        <div className="relative">
+                                            <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
-                                <Field
-                                    label="Confirm Password"
-                                    required
-                                    error={
-                                        errors.password_confirmation
-                                    }
-                                >
-                                    <input
-                                        type="password"
-                                        value={
-                                            data.password_confirmation
-                                        }
-                                        onChange={(e) =>
-                                            setData(
-                                                'password_confirmation',
-                                                e.target.value
-                                            )
-                                        }
-                                        placeholder="Repeat password"
-                                        className={inputClass(
-                                            !!errors.password_confirmation
-                                        )}
-                                    />
-                                </Field>
+                                            <Input
+                                                type={
+                                                    showPasswordConfirmation
+                                                        ? 'text'
+                                                        : 'password'
+                                                }
+                                                name="password_confirmation"
+                                                value={
+                                                    data.password_confirmation
+                                                }
+                                                onChange={(event) =>
+                                                    setData(
+                                                        'password_confirmation',
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Re-enter password"
+                                                autoComplete="new-password"
+                                                className={`${inputClass(
+                                                    !!errors.password_confirmation,
+                                                )} pl-9 pr-10`}
+                                            />
 
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowPasswordConfirmation(
+                                                        !showPasswordConfirmation,
+                                                    )
+                                                }
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700"
+                                                aria-label={
+                                                    showPasswordConfirmation
+                                                        ? 'Hide password confirmation'
+                                                        : 'Show password confirmation'
+                                                }
+                                            >
+                                                {showPasswordConfirmation ? (
+                                                    <EyeOff className="h-4 w-4" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </Field>
+                                </div>
+
+                                {/* Security Notice */}
+
+                                <div className="mt-6 flex gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3.5">
+                                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#173B67]" />
+
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-700">
+                                            Account security
+                                        </p>
+
+                                        <p className="mt-0.5 text-[11px] leading-5 text-slate-500">
+                                            The password should not be shared
+                                            with other employees. The user
+                                            should update their credentials
+                                            according to your organization's
+                                            security policy.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
-                        {/* ================================================== */}
-                        {/* ACTIONS */}
-                        {/* ================================================== */}
+                        {/* =================================================
+                            ACTION BAR
+                        ================================================== */}
 
-                        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
 
-                            <Link
-                                href="/admin/users"
-                                className="
-                                    inline-flex
-                                    h-11
-                                    items-center
-                                    justify-center
-                                    rounded-xl
-                                    border
-                                    border-black/[0.08]
-                                    bg-white
-                                    px-6
-                                    text-sm
-                                    font-medium
-                                    text-black/60
-                                    transition
-                                    hover:bg-black/[0.025]
-                                "
-                            >
-                                Cancel
-                            </Link>
+                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                                <span className="text-red-500">*</span>
 
-                            <button
-                                type="submit"
-                                disabled={processing}
-                                className="
-                                    inline-flex
-                                    h-11
-                                    items-center
-                                    justify-center
-                                    rounded-xl
-                                    bg-[#16170f]
-                                    px-7
-                                    text-sm
-                                    font-semibold
-                                    text-white
-                                    shadow-sm
-                                    transition
-                                    hover:bg-[#292a21]
-                                    disabled:cursor-not-allowed
-                                    disabled:opacity-50
-                                "
-                            >
-                                {processing
-                                    ? 'Creating account...'
-                                    : 'Create User'}
-                            </button>
+                                <span>
+                                    Required fields
+                                </span>
+                            </div>
 
+                            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+
+                                <Button
+                                    asChild
+                                    type="button"
+                                    variant="outline"
+                                    className="h-10 rounded-lg border-slate-200 bg-white px-5 text-sm font-medium text-slate-600 shadow-none hover:bg-slate-50 hover:text-slate-900"
+                                >
+                                    <Link href="/admin/users">
+                                        Cancel
+                                    </Link>
+                                </Button>
+
+                                <Button
+                                    type="submit"
+                                    disabled={processing}
+                                    className="h-10 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#123052] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {processing ? (
+                                        <>
+                                            <span className="mr-2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+
+                                            Creating account...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check className="mr-2 h-4 w-4" />
+
+                                            Create User
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
-
                     </form>
-                </div>
+                </main>
             </div>
         </>
     );
-}
-
-/* ================================================== */
-/* SECTION HEADER */
-/* ================================================== */
-
-function SectionHeader({
-    number,
-    title,
-    description,
-}: {
-    number: string;
-    title: string;
-    description: string;
-}) {
-    return (
-        <div className="border-b border-black/[0.055] px-5 py-5">
-            <div className="flex items-start gap-4">
-                <span
-                    className="
-                        flex
-                        h-8
-                        w-8
-                        shrink-0
-                        items-center
-                        justify-center
-                        rounded-lg
-                        bg-[#edf2df]
-                        text-[10px]
-                        font-bold
-                        text-[#70833e]
-                    "
-                >
-                    {number}
-                </span>
-
-                <div>
-                    <h2 className="text-sm font-semibold text-[#16170f]">
-                        {title}
-                    </h2>
-
-                    <p className="mt-1 text-xs leading-5 text-black/40">
-                        {description}
-                    </p>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ================================================== */
-/* FIELD */
-/* ================================================== */
-
-function Field({
-    label,
-    required = false,
-    error,
-    hint,
-    children,
-}: {
-    label: string;
-    required?: boolean;
-    error?: string;
-    hint?: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="min-w-0">
-            <label className="mb-2 block">
-                <span className="text-[11px] font-semibold text-black/65">
-                    {label}
-
-                    {required && (
-                        <span className="ml-1 text-[#8ca63b]">
-                            *
-                        </span>
-                    )}
-                </span>
-
-                {hint && (
-                    <span className="mt-0.5 block text-[10px] text-black/35">
-                        {hint}
-                    </span>
-                )}
-            </label>
-
-            {children}
-
-            {error && (
-                <p className="mt-1.5 text-[11px] font-medium text-red-500">
-                    {error}
-                </p>
-            )}
-        </div>
-    );
-}
-
-/* ================================================== */
-/* INPUT STYLE */
-/* ================================================== */
-
-function inputClass(hasError: boolean = false) {
-    return `
-        h-11
-        w-full
-        rounded-xl
-        border
-        ${hasError
-            ? 'border-red-300 bg-red-50/30'
-            : 'border-black/[0.08] bg-[#fafafa]'
-        }
-        px-3.5
-        text-sm
-        text-[#16170f]
-        outline-none
-        transition
-        placeholder:text-black/25
-        focus:border-[#9fbe3c]
-        focus:bg-white
-        focus:ring-2
-        focus:ring-[#d8ff63]/20
-    `;
 }

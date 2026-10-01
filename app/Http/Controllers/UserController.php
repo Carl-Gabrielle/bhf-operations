@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -49,18 +51,46 @@ class UserController extends Controller
     /**
      * Display a specific user.
      */
-    public function show(User $user): Response
-    {
-        $user->load([
-            'organizationalUnit:id,code,name',
-            'position:id,name',
-            'roles:id,name',
+   /**
+ * Display a specific user.
+ */
+public function show(User $user): Response
+{
+    $user->load([
+        'organizationalUnit:id,code,name',
+        'position:id,name',
+        'roles:id,name',
+    ]);
+
+    $organizationalUnits = OrganizationalUnit::query()
+        ->orderBy('code')
+        ->get([
+            'id',
+            'code',
+            'name',
         ]);
 
-        return Inertia::render('Admin/Users/Show', [
-            'user' => new UserResource($user),
+    $positions = \App\Models\Position::query()
+        ->orderBy('name')
+        ->get([
+            'id',
+            'name',
         ]);
-    }
+
+    $roles = \Spatie\Permission\Models\Role::query()
+        ->orderBy('name')
+        ->get([
+            'id',
+            'name',
+        ]);
+
+    return Inertia::render('Admin/Users/View', [
+        'user' => (new UserResource($user))->resolve(),
+        'organizationalUnits' => $organizationalUnits,
+        'positions' => $positions,
+        'roles' => $roles,
+    ]);
+}
 
 /**
  * Display the user creation form.
@@ -231,7 +261,62 @@ public function create(): Response
                 'User created successfully.',
             );
     }
+/**
+ * Reset a user's password.
+ */
+public function resetPassword(
+    User $user
+) {
+    /*
+    |--------------------------------------------------------------------------
+    | Generate secure temporary password
+    |--------------------------------------------------------------------------
+    */
 
+   $temporaryPassword = Str::password(
+    length: 12,
+    letters: true,
+    numbers: true,
+    symbols: true,
+);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update user password
+    |--------------------------------------------------------------------------
+    */
+
+    $user->update([
+        'password' => Hash::make(
+            $temporaryPassword
+        ),
+
+        'password_changed_at' => now(),
+
+        'must_change_password' => true,
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Audit log
+    |--------------------------------------------------------------------------
+    |
+    | Add your audit logging here later.
+    |
+    | IMPORTANT:
+    | Never store the temporary password
+    | in your audit log.
+    |
+    */
+
+    return back()->with([
+        'success' =>
+            'Password reset successfully.',
+
+        'temporaryPassword' =>
+            $temporaryPassword,
+    ]);
+}
     /**
      * Update a user.
      */

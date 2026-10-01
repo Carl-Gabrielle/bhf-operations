@@ -1153,7 +1153,7 @@ export default function Dashboard() {
                         </aside>
                     </div>
                 </main>
-            </div>
+        </div>
         </>
     );
 }
