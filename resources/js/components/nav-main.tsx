@@ -11,7 +11,24 @@ import {
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import type { NavItem } from '@/types';
 
-export type NavSection = 'pages' | 'administration';
+/*
+|--------------------------------------------------------------------------
+| Navigation Sections
+|--------------------------------------------------------------------------
+*/
+
+export type NavSection =
+    | 'main'
+    | 'organization'
+    | 'requests'
+    | 'access'
+    | 'reports';
+
+/*
+|--------------------------------------------------------------------------
+| RBAC Navigation Item
+|--------------------------------------------------------------------------
+*/
 
 export type RBACNavItem = NavItem & {
     permission?: string;
@@ -19,24 +36,57 @@ export type RBACNavItem = NavItem & {
     section?: NavSection;
 };
 
+/*
+|--------------------------------------------------------------------------
+| Props
+|--------------------------------------------------------------------------
+*/
+
 type NavMainProps = {
     items: RBACNavItem[];
 };
 
-export function NavMain({ items }: NavMainProps) {
-    const { isCurrentUrl } = useCurrentUrl();
+/*
+|--------------------------------------------------------------------------
+| Section Configuration
+|--------------------------------------------------------------------------
+|
+| Controls the order and labels of the sidebar sections.
+|
+|--------------------------------------------------------------------------
+*/
 
-    const dashboardItem = items.find(
-        (item) => item.title === 'Dashboard',
-    );
+const sectionConfig: {
+    key: NavSection;
+    label: string;
+}[] = [
+    {
+        key: 'main',
+        label: 'Main',
+    },
+    {
+        key: 'organization',
+        label: 'Organization',
+    },
+    {
+        key: 'requests',
+        label: 'Requests',
+    },
+    {
+        key: 'access',
+        label: 'Access & Security',
+    },
+    {
+        key: 'reports',
+        label: 'Reports',
+    },
+];
 
-    const pageItems = items.filter(
-        (item) => item.section === 'pages',
-    );
-
-    const administrationItems = items.filter(
-        (item) => item.section === 'administration',
-    );
+/*
+|--------------------------------------------------------------------------
+| Navigation Styling
+|--------------------------------------------------------------------------
+*/
 
 const navigationClassName = `
     relative
@@ -61,130 +111,124 @@ const navigationClassName = `
     [&>svg]:size-[18px]
     [&>svg]:text-slate-500
     [&>svg]:transition-colors
+
     hover:[&>svg]:text-[#4389BC]
     data-[active=true]:[&>svg]:text-white
 `;
 
+/*
+|--------------------------------------------------------------------------
+| NavMain
+|--------------------------------------------------------------------------
+*/
+
+export function NavMain({
+    items,
+}: NavMainProps) {
+    const { isCurrentUrl } = useCurrentUrl();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Render Individual Section
+    |--------------------------------------------------------------------------
+    */
+
+    const renderSection = (
+        section: NavSection,
+        label: string,
+    ) => {
+        const sectionItems = items.filter(
+            (item) => item.section === section,
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Don't render empty sections
+        |--------------------------------------------------------------------------
+        */
+
+        if (sectionItems.length === 0) {
+            return null;
+        }
+
+        return (
+            <SidebarGroup
+                key={section}
+                className="px-2 py-0"
+            >
+                {/* --------------------------------------------------------- */}
+                {/* SECTION LABEL                                              */}
+                {/* --------------------------------------------------------- */}
+
+                <SidebarGroupLabel
+                    className="
+                        mb-2
+                        px-3
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-[0.08em]
+                        text-slate-400
+                    "
+                >
+                    {label}
+                </SidebarGroupLabel>
+
+                {/* --------------------------------------------------------- */}
+                {/* NAVIGATION ITEMS                                           */}
+                {/* --------------------------------------------------------- */}
+
+                <SidebarMenu className="gap-1">
+                    {sectionItems.map((item) => {
+                        const Icon = item.icon;
+
+                        return (
+                            <SidebarMenuItem
+                                key={item.title}
+                            >
+                                <SidebarMenuButton
+                                    asChild
+                                    isActive={isCurrentUrl(
+                                        item.href,
+                                    )}
+                                    tooltip={{
+                                        children:
+                                            item.title,
+                                    }}
+                                    className={
+                                        navigationClassName
+                                    }
+                                >
+                                    <Link
+                                        href={item.href}
+                                        prefetch
+                                    >
+                                        {Icon && <Icon />}
+
+                                        <span>
+                                            {item.title}
+                                        </span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        );
+                    })}
+                </SidebarMenu>
+            </SidebarGroup>
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Render
+    |--------------------------------------------------------------------------
+    */
+
     return (
         <div className="space-y-6">
-            {/* ------------------------------------------------------------- */}
-            {/* DASHBOARD */}
-            {/* ------------------------------------------------------------- */}
-
-            {dashboardItem && (
-                <SidebarGroup className="px-2 py-0">
-                    <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton
-                                asChild
-                                isActive={isCurrentUrl(
-                                    dashboardItem.href,
-                                )}
-                                tooltip={{
-                                    children: dashboardItem.title,
-                                }}
-                                className={navigationClassName}
-                            >
-                                <Link
-                                    href={dashboardItem.href}
-                                    prefetch
-                                >
-                                    {dashboardItem.icon && (
-                                        <dashboardItem.icon />
-                                    )}
-
-                                    <span>
-                                        {dashboardItem.title}
-                                    </span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </SidebarGroup>
-            )}
-
-            {/* ------------------------------------------------------------- */}
-            {/* PAGES */}
-            {/* ------------------------------------------------------------- */}
-
-            {pageItems.length > 0 && (
-                <SidebarGroup className="px-2 py-0">
-                    <SidebarGroupLabel className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                        Pages
-                    </SidebarGroupLabel>
-
-                    <SidebarMenu className="gap-1">
-                        {pageItems.map((item) => (
-                            <SidebarMenuItem key={item.title}>
-                                <SidebarMenuButton
-                                    asChild
-                                    isActive={isCurrentUrl(
-                                        item.href,
-                                    )}
-                                    tooltip={{
-                                        children: item.title,
-                                    }}
-                                    className={navigationClassName}
-                                >
-                                    <Link
-                                        href={item.href}
-                                        prefetch
-                                    >
-                                        {item.icon && (
-                                            <item.icon />
-                                        )}
-
-                                        <span>
-                                            {item.title}
-                                        </span>
-                                    </Link>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        ))}
-                    </SidebarMenu>
-                </SidebarGroup>
-            )}
-
-            {/* ------------------------------------------------------------- */}
-            {/* ADMINISTRATION */}
-            {/* ------------------------------------------------------------- */}
-
-            {administrationItems.length > 0 && (
-                <SidebarGroup className="px-2 py-0">
-                    <SidebarGroupLabel className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                        Administration
-                    </SidebarGroupLabel>
-
-                    <SidebarMenu className="gap-1">
-                        {administrationItems.map((item) => (
-                            <SidebarMenuItem key={item.title}>
-                                <SidebarMenuButton
-                                    asChild
-                                    isActive={isCurrentUrl(
-                                        item.href,
-                                    )}
-                                    tooltip={{
-                                        children: item.title,
-                                    }}
-                                    className={navigationClassName}
-                                >
-                                    <Link
-                                        href={item.href}
-                                        prefetch
-                                    >
-                                        {item.icon && (
-                                            <item.icon />
-                                        )}
-
-                                        <span>
-                                            {item.title}
-                                        </span>
-                                    </Link>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        ))}
-                    </SidebarMenu>
-                </SidebarGroup>
+            {sectionConfig.map(
+                ({ key, label }) =>
+                    renderSection(key, label),
             )}
         </div>
     );

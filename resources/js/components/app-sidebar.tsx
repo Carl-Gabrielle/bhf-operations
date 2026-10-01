@@ -6,7 +6,6 @@ import {
     FileText,
     LayoutGrid,
     Plane,
-    Settings,
     ShieldCheck,
     UserCog,
     Users,
@@ -39,14 +38,17 @@ type AuthUser = {
     id: number;
     name: string;
     email: string;
-    role: string | null;
-    roles: string[];
-    permissions: string[];
+
+    role?: string | null;
+
+    roles?: string[];
+
+    permissions?: string[];
 };
 
 type PageProps = {
-    auth: {
-        user: AuthUser | null;
+    auth?: {
+        user?: AuthUser | null;
     };
 };
 
@@ -55,20 +57,15 @@ type PageProps = {
 | Main Navigation
 |--------------------------------------------------------------------------
 |
-| Dashboard
+| IMPORTANT:
 |
-| Pages
-| ├── Employees
-| ├── Leave Applications
-| ├── Undertime
-| ├── Overtime
-| ├── Travel Orders
-| └── Reports
+| Navigation is controlled by PERMISSIONS.
 |
-| Administration
-| ├── User Management
-| ├── Roles & Permissions
-| └── Settings
+| We do NOT hardcode:
+|
+| if role === admin
+|
+| This allows Spatie Permission to control what each user can see.
 |
 |--------------------------------------------------------------------------
 */
@@ -76,7 +73,7 @@ type PageProps = {
 const mainNavItems: RBACNavItem[] = [
     /*
     |--------------------------------------------------------------------------
-    | Dashboard
+    | MAIN
     |--------------------------------------------------------------------------
     */
 
@@ -84,11 +81,13 @@ const mainNavItems: RBACNavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+        permission: 'dashboard.view',
+        section: 'main',
     },
 
     /*
     |--------------------------------------------------------------------------
-    | Pages
+    | ORGANIZATION
     |--------------------------------------------------------------------------
     */
 
@@ -97,15 +96,21 @@ const mainNavItems: RBACNavItem[] = [
         href: '/employees',
         icon: UserCog,
         permission: 'employees.view',
-        section: 'pages',
+        section: 'organization',
     },
+
+    /*
+    |--------------------------------------------------------------------------
+    | REQUESTS
+    |--------------------------------------------------------------------------
+    */
 
     {
         title: 'Leave Applications',
         href: '/leave-applications',
         icon: CalendarDays,
         permission: 'leave.view',
-        section: 'pages',
+        section: 'requests',
     },
 
     {
@@ -113,7 +118,7 @@ const mainNavItems: RBACNavItem[] = [
         href: '/undertime',
         icon: Clock3,
         permission: 'undertime.view',
-        section: 'pages',
+        section: 'requests',
     },
 
     {
@@ -121,7 +126,7 @@ const mainNavItems: RBACNavItem[] = [
         href: '/overtime',
         icon: Clock3,
         permission: 'overtime.view',
-        section: 'pages',
+        section: 'requests',
     },
 
     {
@@ -129,20 +134,12 @@ const mainNavItems: RBACNavItem[] = [
         href: '/travel-orders',
         icon: Plane,
         permission: 'travel.view',
-        section: 'pages',
-    },
-
-    {
-        title: 'Reports',
-        href: '/reports',
-        icon: FileText,
-        permission: 'reports.view',
-        section: 'pages',
+        section: 'requests',
     },
 
     /*
     |--------------------------------------------------------------------------
-    | Administration
+    | ACCESS & SECURITY
     |--------------------------------------------------------------------------
     */
 
@@ -151,23 +148,29 @@ const mainNavItems: RBACNavItem[] = [
         href: '/admin/users',
         icon: Users,
         permission: 'users.view',
-        section: 'administration',
+        section: 'access',
     },
 
     {
         title: 'Roles & Permissions',
         href: '/admin/roles',
         icon: ShieldCheck,
-        permission: 'roles.view',
-        section: 'administration',
+        permission: 'users.manage-roles',
+        section: 'access',
     },
 
+    /*
+    |--------------------------------------------------------------------------
+    | REPORTS
+    |--------------------------------------------------------------------------
+    */
+
     {
-        title: 'Settings',
-        href: '/settings',
-        icon: Settings,
-        permission: 'settings.view',
-        section: 'administration',
+        title: 'Reports',
+        href: '/reports',
+        icon: FileText,
+        permission: 'reports.view',
+        section: 'reports',
     },
 ];
 
@@ -180,42 +183,50 @@ const mainNavItems: RBACNavItem[] = [
 function hasPermission(
     permissions: string[],
     requiredPermission?: string,
-) {
+): boolean {
     /*
     |--------------------------------------------------------------------------
-    | No permission requirement
+    | No Permission Required
     |--------------------------------------------------------------------------
-    |
-    | Items without a permission are available to authenticated users.
-    |
     */
 
     if (!requiredPermission) {
         return true;
     }
 
-    return permissions.includes(requiredPermission);
+    /*
+    |--------------------------------------------------------------------------
+    | Check Permission
+    |--------------------------------------------------------------------------
+    */
+
+    return permissions.includes(
+        requiredPermission,
+    );
 }
 
 /*
 |--------------------------------------------------------------------------
-| Sidebar
+| App Sidebar
 |--------------------------------------------------------------------------
 */
 
 export function AppSidebar() {
-    const { auth } = usePage<PageProps>().props;
+    /*
+    |--------------------------------------------------------------------------
+    | Get Inertia Props
+    |--------------------------------------------------------------------------
+    */
 
-    const user = auth.user;
+    const page = usePage<PageProps>();
+
+    const user =
+        page.props.auth?.user ?? null;
 
     /*
     |--------------------------------------------------------------------------
     | Guest Protection
     |--------------------------------------------------------------------------
-    |
-    | Normally the sidebar only renders for authenticated users.
-    | This prevents errors if the layout is ever rendered without auth data.
-    |
     */
 
     if (!user) {
@@ -224,33 +235,41 @@ export function AppSidebar() {
 
     /*
     |--------------------------------------------------------------------------
-    | User Permissions
+    | Get Permissions
     |--------------------------------------------------------------------------
     */
 
-    const permissions = user.permissions ?? [];
+    const permissions =
+        user.permissions ?? [];
 
     /*
     |--------------------------------------------------------------------------
-    | Filter Navigation According To RBAC
+    | Filter Navigation By Permission
     |--------------------------------------------------------------------------
     */
 
-    const visibleNavItems = mainNavItems.filter((item) => {
-        return hasPermission(
-            permissions,
-            item.permission,
+    const visibleNavItems =
+        mainNavItems.filter((item) =>
+            hasPermission(
+                permissions,
+                item.permission,
+            ),
         );
-    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Render Sidebar
+    |--------------------------------------------------------------------------
+    */
 
     return (
         <Sidebar
             collapsible="icon"
             variant="inset"
         >
-            {/* ------------------------------------------------------------- */}
-            {/* HEADER */}
-            {/* ------------------------------------------------------------- */}
+            {/* ============================================================= */}
+            {/* HEADER                                                        */}
+            {/* ============================================================= */}
 
             <SidebarHeader className="border-b border-slate-200">
                 <SidebarMenu>
@@ -258,16 +277,21 @@ export function AppSidebar() {
                         <SidebarMenuButton
                             size="lg"
                             asChild
-                            className="h-16 rounded-lg hover:bg-transparent"
+                            className="
+                                h-16
+                                rounded-lg
+                                hover:bg-transparent
+                            "
                         >
                             <Link
                                 href={dashboard()}
                                 prefetch
                             >
                                 <div className="flex items-center gap-3">
-                                    {/* ------------------------------------------------- */}
-                                    {/* BHF LOGO */}
-                                    {/* ------------------------------------------------- */}
+
+                                    {/* ================================================= */}
+                                    {/* LOGO                                            */}
+                                    {/* ================================================= */}
 
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center">
                                         <img
@@ -277,9 +301,9 @@ export function AppSidebar() {
                                         />
                                     </div>
 
-                                    {/* ------------------------------------------------- */}
-                                    {/* BRAND NAME */}
-                                    {/* ------------------------------------------------- */}
+                                    {/* ================================================= */}
+                                    {/* BRAND                                           */}
+                                    {/* ================================================= */}
 
                                     <div className="flex min-w-0 flex-col leading-tight">
                                         <span className="truncate text-sm font-semibold text-slate-900">
@@ -290,6 +314,7 @@ export function AppSidebar() {
                                             Operations Management
                                         </span>
                                     </div>
+
                                 </div>
                             </Link>
                         </SidebarMenuButton>
@@ -297,9 +322,9 @@ export function AppSidebar() {
                 </SidebarMenu>
             </SidebarHeader>
 
-            {/* ------------------------------------------------------------- */}
-            {/* MAIN NAVIGATION */}
-            {/* ------------------------------------------------------------- */}
+            {/* ============================================================= */}
+            {/* NAVIGATION                                                     */}
+            {/* ============================================================= */}
 
             <SidebarContent className="pt-3">
                 <NavMain
@@ -307,9 +332,9 @@ export function AppSidebar() {
                 />
             </SidebarContent>
 
-            {/* ------------------------------------------------------------- */}
-            {/* FOOTER */}
-            {/* ------------------------------------------------------------- */}
+            {/* ============================================================= */}
+            {/* USER                                                           */}
+            {/* ============================================================= */}
 
             <SidebarFooter>
                 <NavUser />
