@@ -97,12 +97,6 @@ interface RoleConfig {
 |--------------------------------------------------------------------------
 | Brand
 |--------------------------------------------------------------------------
-|
-| BHF Rural Bank palette:
-| Purple  #3F2A8F
-| Blue    #4B7BC0
-| Yellow  #F0E600
-|--------------------------------------------------------------------------
 */
 
 const brand = {
@@ -184,6 +178,7 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
+
     coo: {
         title: 'Executive overview',
         description:
@@ -207,6 +202,7 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
+
     hr: {
         title: 'Human resources',
         description:
@@ -235,6 +231,7 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
+
     manager: {
         title: 'Team operations',
         description:
@@ -263,6 +260,7 @@ const roleConfig: Record<Role, RoleConfig> = {
             },
         ],
     },
+
     employee: {
         title: 'Your workspace',
         description:
@@ -324,6 +322,7 @@ const roleStats: Record<Role, StatItem[]> = {
             accent: 'yellow',
         },
     ],
+
     coo: [
         {
             label: 'Pending approvals',
@@ -354,6 +353,7 @@ const roleStats: Record<Role, StatItem[]> = {
             accent: 'blue',
         },
     ],
+
     hr: [
         {
             label: 'Pending requests',
@@ -384,6 +384,7 @@ const roleStats: Record<Role, StatItem[]> = {
             accent: 'blue',
         },
     ],
+
     manager: [
         {
             label: 'Pending approvals',
@@ -414,6 +415,7 @@ const roleStats: Record<Role, StatItem[]> = {
             accent: 'purple',
         },
     ],
+
     employee: [
         {
             label: 'Pending requests',
@@ -455,6 +457,7 @@ const roleStats: Record<Role, StatItem[]> = {
 function getInitials(name: string) {
     return name
         .split(' ')
+        .filter(Boolean)
         .map((part) => part[0])
         .slice(0, 2)
         .join('')
@@ -465,37 +468,51 @@ function formatRole(role: Role) {
     switch (role) {
         case 'admin':
             return 'Administrator';
+
         case 'coo':
             return 'COO';
+
         case 'hr':
             return 'HR Administrator';
+
         case 'manager':
             return 'Manager / Head';
+
         case 'employee':
             return 'Employee';
+
         default:
             return 'User';
     }
 }
 
+/*
+|--------------------------------------------------------------------------
+| Status badge
+|--------------------------------------------------------------------------
+*/
+
 function StatusBadge({ status }: { status: Status }) {
     const styles: Record<
         Status,
-        { wrapper: string; dot: string }
+        {
+            wrapper: string;
+            dot: string;
+        }
     > = {
         Approved: {
-            wrapper:
-                'border-emerald-200 bg-emerald-50 text-emerald-700',
+            wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-700',
             dot: 'bg-emerald-500',
         },
+
         Pending: {
-            wrapper:
-                'border-[#F0E600]/70 bg-[#FFFDE7] text-[#786F00]',
-            dot: 'bg-[#D2C900]',
+            wrapper: 'border-amber-200 bg-amber-50 text-amber-700',
+            dot: 'bg-amber-500',
         },
+
         Rejected: {
-            wrapper: 'border-rose-200 bg-rose-50 text-rose-700',
-            dot: 'bg-rose-500',
+            wrapper: 'border-red-200 bg-red-50 text-red-700',
+            dot: 'bg-red-500',
         },
     };
 
@@ -504,39 +521,46 @@ function StatusBadge({ status }: { status: Status }) {
     return (
         <Badge
             variant="outline"
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${style.wrapper}`}
+            className={`rounded-md px-2 py-1 text-[11px] font-semibold ${style.wrapper}`}
         >
-            <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${style.dot}`} />
+            <span
+                className={`mr-1.5 h-1.5 w-1.5 rounded-full ${style.dot}`}
+            />
             {status}
         </Badge>
     );
 }
 
+/*
+|--------------------------------------------------------------------------
+| Stat accent
+|--------------------------------------------------------------------------
+*/
+
 function getStatAccent(accent: StatItem['accent']) {
     switch (accent) {
         case 'purple':
             return {
-                bar: 'bg-[#3F2A8F]',
-                icon: 'bg-[#F2EFFC] text-[#3F2A8F]',
-                glow: 'ring-[#3F2A8F]/10',
+                border: 'border-l-[#3F2A8F]',
+                icon: 'bg-[#F3F1FA] text-[#3F2A8F]',
             };
+
         case 'blue':
             return {
-                bar: 'bg-[#4B7BC0]',
-                icon: 'bg-[#EEF5FC] text-[#3567A8]',
-                glow: 'ring-[#4B7BC0]/10',
+                border: 'border-l-[#4B7BC0]',
+                icon: 'bg-[#EFF4FA] text-[#3567A8]',
             };
+
         case 'yellow':
             return {
-                bar: 'bg-[#E5DA00]',
-                icon: 'bg-[#FFFDE7] text-[#857B00]',
-                glow: 'ring-[#E5DA00]/15',
+                border: 'border-l-[#D8CC00]',
+                icon: 'bg-[#FFFBEA] text-[#756B00]',
             };
+
         case 'green':
             return {
-                bar: 'bg-emerald-500',
+                border: 'border-l-emerald-500',
                 icon: 'bg-emerald-50 text-emerald-700',
-                glow: 'ring-emerald-500/10',
             };
     }
 }
@@ -587,10 +611,17 @@ export default function Dashboard() {
         hour12: true,
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Table columns
+    |--------------------------------------------------------------------------
+    */
+
     const columns = useMemo<ColumnDef<RequestItem>[]>(
         () => [
             {
                 accessorKey: 'type',
+
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -599,25 +630,29 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Request
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
+
                 cell: ({ row }) => (
-                    <div className="min-w-[180px]">
-                        <p className="text-sm font-semibold tracking-tight text-slate-800">
+                    <div className="min-w-[190px]">
+                        <p className="text-sm font-semibold text-slate-800">
                             {row.original.type}
                         </p>
-                        <p className="mt-1 text-[11px] font-medium tracking-wide text-slate-400">
+
+                        <p className="mt-1 text-[11px] font-medium text-slate-400">
                             {row.original.id}
                         </p>
                     </div>
                 ),
             },
+
             {
                 accessorKey: 'employee',
+
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -626,16 +661,17 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Employee
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
+
                 cell: ({ row }) => (
                     <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 shrink-0 ring-2 ring-white">
-                            <AvatarFallback className="bg-[#F2EFFC] text-[10px] font-bold text-[#3F2A8F]">
+                        <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-[#F3F1FA] text-[10px] font-bold text-[#3F2A8F]">
                                 {getInitials(row.original.employee)}
                             </AvatarFallback>
                         </Avatar>
@@ -644,6 +680,7 @@ export default function Dashboard() {
                             <p className="truncate text-sm font-medium text-slate-700">
                                 {row.original.employee}
                             </p>
+
                             <p className="truncate text-xs text-slate-400">
                                 {row.original.department}
                             </p>
@@ -651,8 +688,10 @@ export default function Dashboard() {
                     </div>
                 ),
             },
+
             {
                 accessorKey: 'date',
+
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -661,20 +700,23 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Date
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
+
                 cell: ({ row }) => (
                     <span className="whitespace-nowrap text-sm text-slate-500">
                         {row.original.date}
                     </span>
                 ),
             },
+
             {
                 accessorKey: 'status',
+
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -683,27 +725,30 @@ export default function Dashboard() {
                                 column.getIsSorted() === 'asc',
                             )
                         }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
+                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
                     >
                         Status
                         <ArrowUpDown className="ml-1.5 h-3 w-3" />
                     </Button>
                 ),
+
                 cell: ({ row }) => (
                     <StatusBadge status={row.original.status} />
                 ),
             },
+
             {
                 id: 'actions',
                 enableSorting: false,
                 enableGlobalFilter: false,
                 header: () => null,
+
                 cell: () => (
                     <div className="flex justify-end">
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-full text-slate-300 transition-colors hover:bg-[#F2EFFC] hover:text-[#3F2A8F]"
+                            className="h-8 w-8 rounded-lg text-slate-300 hover:bg-slate-100 hover:text-[#3F2A8F]"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -734,60 +779,53 @@ export default function Dashboard() {
         <>
             <Head title="Dashboard" />
 
-            <div className="min-h-full bg-[#F7F8FA] text-slate-900">
-                <main className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-                    {/* Header */}
-                    <header className="mb-6">
-                        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,.28)]">
-                            {/* Small BHF-inspired color accents */}
-                            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-[#3F2A8F] via-[#4B7BC0] to-[#F0E600]" />
-                            <div className="absolute right-0 top-0 h-32 w-32 translate-x-1/3 -translate-y-1/3 rounded-full bg-[#F0E600]/10 blur-2xl" />
+            <div className="min-h-full bg-[#F5F6F8] text-slate-900">
 
-                            <div className="relative flex flex-col gap-6 px-6 py-7 sm:px-8 sm:py-8 lg:flex-row lg:items-center lg:justify-between">
-                                <div className="min-w-0">
-                                    <div className="mb-3 flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-[#3F2A8F]" />
-                                        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                <main className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+
+                    {/* ======================================================
+                        PAGE HEADER
+                    ====================================================== */}
+
+                    <header className="mb-6">
+                        <div className="rounded-xl border border-slate-200 bg-white px-6 py-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:px-7">
+
+                            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+
+                                <div>
+                                    <div className="mb-2 flex items-center gap-2">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-[#3F2A8F]" />
+
+                                        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
                                             {formatRole(role)}
                                         </span>
                                     </div>
 
-                                    <h1 className="text-3xl font-semibold leading-tight tracking-[-0.035em] text-slate-950 sm:text-4xl">
-                                        Good morning,{' '}
-                                        <span className="text-[#3F2A8F]">
-                                            {user.name}
-                                        </span>
+                                    <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+                                        Good morning, {user.name}
                                     </h1>
 
-                                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-[15px]">
+                                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                                         {config.description}
                                     </p>
                                 </div>
 
-                                <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center">
-                                    {/* Date + time badge */}
-                                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F2EFFC] text-[#3F2A8F]">
-                                            <Clock3
-                                                className="h-4 w-4"
-                                                strokeWidth={1.8}
-                                            />
-                                        </div>
+                                <div className="flex items-center gap-3">
 
-                                        <div>
-                                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                                                {formattedDate}
-                                            </p>
-                                            <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-800">
-                                                {formattedTime}
-                                            </p>
-                                        </div>
+                                    <div className="hidden rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 sm:block">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                            {formattedDate}
+                                        </p>
+
+                                        <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700">
+                                            {formattedTime}
+                                        </p>
                                     </div>
 
                                     {role !== 'admin' && (
                                         <Button
                                             size="sm"
-                                            className="h-11 rounded-xl bg-[#3F2A8F] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#322176] focus-visible:ring-2 focus-visible:ring-[#3F2A8F]/30"
+                                            className="h-10 rounded-lg bg-[#3F2A8F] px-4 text-sm font-semibold text-white shadow-none hover:bg-[#332276]"
                                         >
                                             <FileText className="mr-2 h-4 w-4" />
                                             New Request
@@ -798,70 +836,80 @@ export default function Dashboard() {
                         </div>
                     </header>
 
-                    {/* KPI cards */}
-                    <section className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {/* ======================================================
+                        KPI CARDS
+                    ====================================================== */}
+
+                    <section className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
                         {stats.map((stat) => {
                             const accent = getStatAccent(stat.accent);
 
                             return (
                                 <div
                                     key={stat.label}
-                                    className={`group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_6px_24px_-20px_rgba(15,23,42,.28)] transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_12px_30px_-22px_rgba(15,23,42,.32)]`}
+                                    className={`rounded-xl border border-slate-200 border-l-4 ${accent.border} bg-white px-5 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.025)] transition-all hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(15,23,42,0.05)]`}
                                 >
-                                    <div
-                                        className={`absolute left-0 top-0 h-0.5 w-full ${accent.bar}`}
-                                    />
-
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+
+                                        <div>
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                                                 {stat.label}
                                             </p>
 
-                                            <p className="mt-3 text-[32px] font-semibold leading-none tracking-[-0.04em] text-slate-950 tabular-nums">
+                                            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 tabular-nums">
                                                 {stat.value}
                                             </p>
 
-                                            <p className="mt-2 text-xs text-slate-400">
+                                            <p className="mt-1 text-xs text-slate-400">
                                                 {stat.description}
                                             </p>
                                         </div>
 
                                         <div
-                                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${accent.icon} ring-1 ${accent.glow}`}
+                                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent.icon}`}
                                         >
                                             <stat.icon
-                                                className="h-[18px] w-[18px]"
+                                                className="h-4 w-4"
                                                 strokeWidth={1.8}
                                             />
                                         </div>
+
                                     </div>
                                 </div>
                             );
                         })}
+
                     </section>
 
-                    {/* Main workspace */}
-                    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
-                        {/* Requests */}
-                        <section className="min-w-0">
-                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-[#3F2A8F]" />
-                                        <h2 className="text-lg font-semibold tracking-[-0.025em] text-slate-950">
-                                            {config.requestTitle}
-                                        </h2>
-                                    </div>
+                    {/* ======================================================
+                        MAIN CONTENT
+                    ====================================================== */}
 
-                                    <p className="mt-1.5 text-xs leading-5 text-slate-400">
+                    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+
+                        {/* ==================================================
+                            REQUESTS
+                        ================================================== */}
+
+                        <section className="min-w-0">
+
+                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+
+                                <div>
+                                    <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+                                        {config.requestTitle}
+                                    </h2>
+
+                                    <p className="mt-1 text-xs text-slate-400">
                                         Recent activity across your workspace
                                     </p>
                                 </div>
 
                                 <div className="flex w-full items-center gap-2 sm:w-auto">
-                                    <div className="relative min-w-0 flex-1 sm:w-[270px]">
-                                        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+                                    <div className="relative min-w-0 flex-1 sm:w-[260px]">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
                                         <Input
                                             value={globalFilter}
@@ -875,45 +923,57 @@ export default function Dashboard() {
                                                     ? 'Search your requests...'
                                                     : 'Search requests, employees...'
                                             }
-                                            className="h-10 rounded-xl border-slate-200 bg-white pl-10 text-sm shadow-none placeholder:text-slate-400 focus-visible:border-[#3F2A8F]/40 focus-visible:ring-2 focus-visible:ring-[#3F2A8F]/10"
+                                            className="h-9 rounded-lg border-slate-200 bg-white pl-9 text-sm shadow-none placeholder:text-slate-400 focus-visible:border-[#3F2A8F]/50 focus-visible:ring-1 focus-visible:ring-[#3F2A8F]/20"
                                         />
                                     </div>
 
                                     <button
                                         type="button"
-                                        className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#3F2A8F]/20 hover:bg-[#F2EFFC] hover:text-[#3F2A8F]"
+                                        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-[#3F2A8F]"
                                         aria-label="Notifications"
                                     >
                                         <Bell className="h-4 w-4" />
 
-                                        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-[#F7F8FA] bg-[#F0E600] px-1 text-[8px] font-bold text-[#403A00]">
+                                        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F0E600] px-1 text-[8px] font-bold text-slate-800">
                                             4
                                         </span>
                                     </button>
+
                                 </div>
                             </div>
 
-                            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,.25)]">
-                                <div className="flex items-center justify-end border-b border-slate-100 px-5 py-3 sm:px-6">
+                            {/* Request table card */}
+
+                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.025)]">
+
+                                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+
+                                    <p className="text-xs font-medium text-slate-500">
+                                        Recent requests
+                                    </p>
+
                                     <button
                                         type="button"
-                                        className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-[#3F2A8F]"
+                                        className="flex items-center gap-1 text-xs font-semibold text-[#3F2A8F] hover:underline"
                                     >
                                         View all
                                         <ArrowUpRight className="h-3.5 w-3.5" />
                                     </button>
+
                                 </div>
 
                                 {/* Desktop */}
+
                                 <div className="hidden overflow-x-auto md:block">
                                     <Table>
+
                                         <TableHeader>
                                             {table
                                                 .getHeaderGroups()
                                                 .map((headerGroup) => (
                                                     <TableRow
                                                         key={headerGroup.id}
-                                                        className="border-b border-slate-100 bg-slate-50/70 hover:bg-slate-50/70"
+                                                        className="border-b border-slate-200 bg-slate-50 hover:bg-slate-50"
                                                     >
                                                         {headerGroup.headers.map(
                                                             (header) => (
@@ -921,9 +981,10 @@ export default function Dashboard() {
                                                                     key={
                                                                         header.id
                                                                     }
-                                                                    className="h-12 px-5"
+                                                                    className="h-11 px-5"
                                                                 >
-                                                                    {header.isPlaceholder
+                                                                    {header
+                                                                        .isPlaceholder
                                                                         ? null
                                                                         : flexRender(
                                                                               header
@@ -940,11 +1001,12 @@ export default function Dashboard() {
                                         </TableHeader>
 
                                         <TableBody>
+
                                             {filteredRows.length > 0 ? (
                                                 filteredRows.map((row) => (
                                                     <TableRow
                                                         key={row.id}
-                                                        className="border-b border-slate-100/80 transition-colors last:border-0 hover:bg-[#FAF9FE]"
+                                                        className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/80"
                                                     >
                                                         {row
                                                             .getVisibleCells()
@@ -969,7 +1031,9 @@ export default function Dashboard() {
                                             ) : (
                                                 <TableRow>
                                                     <TableCell
-                                                        colSpan={columns.length}
+                                                        colSpan={
+                                                            columns.length
+                                                        }
                                                         className="h-32 text-center text-sm text-slate-400"
                                                     >
                                                         No requests match your
@@ -977,12 +1041,16 @@ export default function Dashboard() {
                                                     </TableCell>
                                                 </TableRow>
                                             )}
+
                                         </TableBody>
+
                                     </Table>
                                 </div>
 
                                 {/* Mobile */}
+
                                 <div className="divide-y divide-slate-100 md:hidden">
+
                                     {filteredRows.length > 0 ? (
                                         filteredRows.map((row) => {
                                             const request = row.original;
@@ -990,10 +1058,10 @@ export default function Dashboard() {
                                             return (
                                                 <div
                                                     key={request.id}
-                                                    className="flex items-center gap-3.5 px-4 py-4 transition-colors hover:bg-[#FAF9FE]"
+                                                    className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-slate-50"
                                                 >
-                                                    <Avatar className="h-10 w-10 shrink-0">
-                                                        <AvatarFallback className="bg-[#F2EFFC] text-[10px] font-semibold text-[#3F2A8F]">
+                                                    <Avatar className="h-9 w-9 shrink-0">
+                                                        <AvatarFallback className="bg-[#F3F1FA] text-[10px] font-semibold text-[#3F2A8F]">
                                                             {getInitials(
                                                                 request.employee,
                                                             )}
@@ -1001,7 +1069,9 @@ export default function Dashboard() {
                                                     </Avatar>
 
                                                     <div className="min-w-0 flex-1">
+
                                                         <div className="flex items-start justify-between gap-3">
+
                                                             <div className="min-w-0">
                                                                 <p className="truncate text-sm font-semibold text-slate-800">
                                                                     {
@@ -1021,16 +1091,19 @@ export default function Dashboard() {
                                                                     request.status
                                                                 }
                                                             />
+
                                                         </div>
 
-                                                        <div className="mt-2.5 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                                                        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
                                                             <span>
                                                                 {request.id}
                                                             </span>
+
                                                             <span>
                                                                 {request.date}
                                                             </span>
                                                         </div>
+
                                                     </div>
                                                 </div>
                                             );
@@ -1040,120 +1113,138 @@ export default function Dashboard() {
                                             No requests match your search.
                                         </div>
                                     )}
+
                                 </div>
+
                             </div>
                         </section>
 
-                        {/* Sidebar */}
+                        {/* ==================================================
+                            SIDEBAR
+                        ================================================== */}
+
                         <aside className="space-y-5">
+
                             {/* Quick actions */}
-                            <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_30px_-24px_rgba(15,23,42,.25)]">
-                                <div className="border-b border-slate-100 px-5 py-4">
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4B7BC0]">
+
+                            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.025)]">
+
+                                <div className="border-b border-slate-200 px-5 py-4">
+
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#4B7BC0]">
                                         Shortcuts
                                     </p>
 
-                                    <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-slate-950">
+                                    <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-950">
                                         Quick actions
                                     </h2>
 
                                     <p className="mt-1 text-xs text-slate-400">
                                         Common tasks and shortcuts
                                     </p>
+
                                 </div>
 
-                                <div className="p-2">
-                                    {config.quickActions.map(
-                                        (action, index) => (
-                                            <button
-                                                type="button"
-                                                key={action.title}
-                                                className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-slate-50"
-                                            >
-                                                <div
-                                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                                                        index % 3 === 0
-                                                            ? 'bg-[#F2EFFC] text-[#3F2A8F] group-hover:bg-[#3F2A8F] group-hover:text-white'
-                                                            : index % 3 === 1
-                                                              ? 'bg-[#EEF5FC] text-[#3567A8] group-hover:bg-[#4B7BC0] group-hover:text-white'
-                                                              : 'bg-[#FFFDE7] text-[#857B00] group-hover:bg-[#F0E600] group-hover:text-[#4A4300]'
-                                                    }`}
-                                                >
-                                                    <action.icon
-                                                        className="h-4 w-4"
-                                                        strokeWidth={1.8}
-                                                    />
-                                                </div>
+                                <div className="divide-y divide-slate-100">
 
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-sm font-semibold text-slate-800">
-                                                        {action.title}
-                                                    </p>
+                                    {config.quickActions.map((action) => (
+                                        <button
+                                            type="button"
+                                            key={action.title}
+                                            className="group flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50"
+                                        >
+                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-[#F3F1FA] group-hover:text-[#3F2A8F]">
+                                                <action.icon
+                                                    className="h-4 w-4"
+                                                    strokeWidth={1.8}
+                                                />
+                                            </div>
 
-                                                    <p className="mt-0.5 truncate text-xs text-slate-400">
-                                                        {action.description}
-                                                    </p>
-                                                </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm font-semibold text-slate-800">
+                                                    {action.title}
+                                                </p>
 
-                                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-[#3F2A8F]" />
-                                            </button>
-                                        ),
-                                    )}
+                                                <p className="mt-0.5 truncate text-xs text-slate-400">
+                                                    {action.description}
+                                                </p>
+                                            </div>
+
+                                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-[#3F2A8F]" />
+                                        </button>
+                                    ))}
+
                                 </div>
+
                             </section>
 
-                            {/* Access */}
-                            <section className="overflow-hidden rounded-2xl bg-[#171326] p-5 text-white shadow-[0_12px_35px_-24px_rgba(15,23,42,.45)]">
-                                <div className="mb-4 h-1 w-16 rounded-full bg-gradient-to-r from-[#3F2A8F] via-[#4B7BC0] to-[#F0E600]" />
+                            {/* Access information */}
 
-                                <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#B9AFFF]">
-                                            Access
-                                        </p>
+                            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.025)]">
 
-                                        <h2 className="mt-1 text-lg font-semibold tracking-[-0.025em]">
-                                            {user.position || formatRole(role)}
-                                        </h2>
+                                <div className="border-b border-slate-200 px-5 py-4">
+
+                                    <div className="flex items-center justify-between gap-4">
+
+                                        <div>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#4B7BC0]">
+                                                Access
+                                            </p>
+
+                                            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-950">
+                                                {user.position ||
+                                                    formatRole(role)}
+                                            </h2>
+                                        </div>
+
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F3F1FA] text-[#3F2A8F]">
+                                            <ShieldCheck className="h-4 w-4" />
+                                        </div>
+
                                     </div>
 
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-[#D8D0FF]">
-                                        <ShieldCheck className="h-5 w-5" />
-                                    </div>
                                 </div>
 
-                                <p className="mt-4 text-sm leading-6 text-slate-300">
-                                    {config.title}. Your dashboard content is
-                                    based on your assigned access level.
-                                </p>
+                                <div className="px-5 py-4">
 
-                                <div className="mt-5 grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl bg-white/[0.06] p-3">
-                                        <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-                                            Role
-                                        </p>
+                                    <p className="text-sm leading-6 text-slate-500">
+                                        {config.title}. Your dashboard content
+                                        is based on your assigned access level.
+                                    </p>
 
-                                        <p className="mt-1.5 text-sm font-semibold capitalize text-white">
-                                            {role}
-                                        </p>
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                                            <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                                                Role
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
+                                                {role}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                                            <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                                                Access
+                                            </p>
+
+                                            <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                Authorized
+                                            </p>
+                                        </div>
+
                                     </div>
 
-                                    <div className="rounded-xl bg-white/[0.06] p-3">
-                                        <p className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
-                                            Access
-                                        </p>
-
-                                        <p className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                                            Authorized
-                                        </p>
-                                    </div>
                                 </div>
+
                             </section>
+
                         </aside>
                     </div>
                 </main>
-        </div>
+            </div>
         </>
     );
 }
