@@ -66,12 +66,36 @@ type UserData = {
     updated_at?: string | null;
 };
 
+
+type AuditLog = {
+    id: number;
+    action: string;
+    description: string;
+    changes?: Record<
+        string,
+        {
+            old?: unknown;
+            new?: unknown;
+            changed?: boolean;
+        }
+    > | null;
+    ip_address?: string | null;
+    created_at?: string | null;
+
+    actor?: {
+        id: number;
+        name?: string | null;
+        username?: string | null;
+    } | null;
+};
+
 type PageProps = {
     user: UserData | { data: UserData };
 
     organizationalUnits?: OrganizationalUnit[];
     positions?: Position[];
     roles?: Role[];
+    auditLogs?: AuditLog[];
 
     flash?: {
         success?: string;
@@ -228,6 +252,97 @@ function formatDate(
             minute: '2-digit',
         },
     );
+}
+
+
+function getAuditActorName(
+    audit: AuditLog,
+): string {
+    return (
+        safeString(audit.actor?.name).trim() ||
+        safeString(audit.actor?.username).trim() ||
+        'System'
+    );
+}
+
+function getAuditActionLabel(
+    action: string,
+): string {
+    switch (action) {
+        case 'password_reset':
+            return 'Password Reset';
+
+        case 'password_changed':
+            return 'Password Changed';
+
+        case 'user_updated':
+            return 'User Updated';
+
+        case 'user_created':
+            return 'User Created';
+
+        case 'user_deleted':
+            return 'User Deleted';
+
+        default:
+            return action
+                .replace(/[_-]/g, ' ')
+                .replace(/\b\w/g, (letter) =>
+                    letter.toUpperCase(),
+                );
+    }
+}
+
+function getAuditActionClass(
+    action: string,
+): string {
+    switch (action) {
+        case 'password_reset':
+            return 'border-amber-200 bg-amber-50 text-amber-700';
+
+        case 'password_changed':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+        case 'user_updated':
+            return 'border-blue-200 bg-blue-50 text-blue-700';
+
+        case 'user_created':
+            return 'border-violet-200 bg-violet-50 text-violet-700';
+
+        case 'user_deleted':
+            return 'border-red-200 bg-red-50 text-red-700';
+
+        default:
+            return 'border-slate-200 bg-slate-50 text-slate-600';
+    }
+}
+
+function formatAuditField(
+    field: string,
+): string {
+    return field
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, (letter) =>
+            letter.toUpperCase(),
+        );
+}
+
+function formatAuditValue(
+    value: unknown,
+): string {
+    if (
+        value === null ||
+        value === undefined ||
+        value === ''
+    ) {
+        return 'Empty';
+    }
+
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+
+    return String(value);
 }
 
 function generateTemporaryPassword(
@@ -481,6 +596,9 @@ export default function ViewUser() {
 
     const roles =
         page.props.roles ?? [];
+
+    const auditLogs =
+        page.props.auditLogs ?? [];
 
     const [editing, setEditing] =
         useState(false);
@@ -1092,6 +1210,188 @@ export default function ViewUser() {
                                         />
                                     </div>
                                 </section>
+
+                                {/* Audit Trail */}
+                                <section className="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+                                    <div className="border-b border-slate-100 px-5 py-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <ShieldCheck className="h-4 w-4 text-[#173B67]" />
+
+                                                    <h3 className="text-sm font-semibold text-slate-900">
+                                                        Audit Trail
+                                                    </h3>
+                                                </div>
+
+                                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                                    Administrative activity and account changes for this user.
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
+                                                {auditLogs.length}{' '}
+                                                {auditLogs.length === 1
+                                                    ? 'Event'
+                                                    : 'Events'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-5">
+                                        {auditLogs.length === 0 ? (
+                                            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-5 py-8 text-center">
+                                                <ShieldCheck className="mx-auto h-5 w-5 text-slate-300" />
+
+                                                <p className="mt-2 text-xs font-medium text-slate-600">
+                                                    No audit activity recorded
+                                                </p>
+
+                                                <p className="mt-1 text-[11px] text-slate-400">
+                                                    Changes and administrative actions will appear here.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <div className="absolute bottom-0 left-[7px] top-2 w-px bg-slate-200" />
+
+                                                <div className="space-y-6">
+                                                    {auditLogs.map(
+                                                        (audit) => (
+                                                            <div
+                                                                key={audit.id}
+                                                                className="relative pl-7"
+                                                            >
+                                                                <div className="absolute left-0 top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-[#173B67] ring-1 ring-slate-200" />
+
+                                                                <div className="flex flex-col gap-3 rounded-lg border border-slate-100 bg-slate-50/50 p-4 sm:flex-row sm:items-start sm:justify-between">
+                                                                    <div className="min-w-0">
+                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                            <span
+                                                                                className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-semibold ${getAuditActionClass(
+                                                                                    audit.action,
+                                                                                )}`}
+                                                                            >
+                                                                                {getAuditActionLabel(
+                                                                                    audit.action,
+                                                                                )}
+                                                                            </span>
+
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                {formatDate(
+                                                                                    audit.created_at,
+                                                                                )}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <p className="mt-2 text-xs leading-5 text-slate-700">
+                                                                            {audit.description}
+                                                                        </p>
+
+                                                                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-400">
+                                                                            <span>
+                                                                                Performed by:{' '}
+                                                                                <strong className="font-semibold text-slate-600">
+                                                                                    {getAuditActorName(
+                                                                                        audit,
+                                                                                    )}
+                                                                                </strong>
+                                                                            </span>
+
+                                                                            {audit.actor?.username && (
+                                                                                <span>
+                                                                                    Username:{' '}
+                                                                                    <strong className="font-medium text-slate-600">
+                                                                                        {audit.actor.username}
+                                                                                    </strong>
+                                                                                </span>
+                                                                            )}
+
+                                                                            {audit.ip_address && (
+                                                                                <span>
+                                                                                    IP:{' '}
+                                                                                    <strong className="font-medium text-slate-600">
+                                                                                        {audit.ip_address}
+                                                                                    </strong>
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {audit.changes &&
+                                                                        Object.keys(
+                                                                            audit.changes,
+                                                                        ).length > 0 && (
+                                                                            <div className="w-full shrink-0 sm:max-w-md">
+                                                                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                                                                                    Changes
+                                                                                </p>
+
+                                                                                <div className="space-y-1.5">
+                                                                                    {Object.entries(
+                                                                                        audit.changes,
+                                                                                    ).map(
+                                                                                        ([
+                                                                                            field,
+                                                                                            change,
+                                                                                        ]) => (
+                                                                                            <div
+                                                                                                key={field}
+                                                                                                className="rounded-md border border-slate-200 bg-white px-3 py-2"
+                                                                                            >
+                                                                                                <div className="text-[10px] font-semibold text-slate-600">
+                                                                                                    {formatAuditField(
+                                                                                                        field,
+                                                                                                    )}
+                                                                                                </div>
+
+                                                                                                {change.changed ? (
+                                                                                                    <p className="mt-1 text-[10px] text-slate-500">
+                                                                                                        Value changed
+                                                                                                    </p>
+                                                                                                ) : (
+                                                                                                    <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                                                                                        <div className="min-w-0">
+                                                                                                            <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                                                                Before
+                                                                                                            </span>
+
+                                                                                                            <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                                                                                                                {formatAuditValue(
+                                                                                                                    change.old,
+                                                                                                                )}
+                                                                                                            </p>
+                                                                                                        </div>
+
+                                                                                                        <div className="min-w-0">
+                                                                                                            <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+                                                                                                                After
+                                                                                                            </span>
+
+                                                                                                            <p className="mt-0.5 truncate text-[10px] font-medium text-slate-700">
+                                                                                                                {formatAuditValue(
+                                                                                                                    change.new,
+                                                                                                                )}
+                                                                                                            </p>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ),
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                </div>
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+
                             </div>
                         ) : (
                             <form

@@ -12,6 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -85,4 +86,20 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Position::class);
     }
+    /**
+ * Audit records where this user was the person performing the action.
+ */
+public function auditLogs(): HasMany
+{
+    return $this->hasMany(AuditLog::class, 'actor_id');
+}
+
+/**
+ * Audit records where this user was the affected account.
+ */
+public function targetAuditLogs(): HasMany
+{
+    return $this->hasMany(AuditLog::class, 'target_user_id');
+}
+
 }
