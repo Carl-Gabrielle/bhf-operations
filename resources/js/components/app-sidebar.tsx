@@ -105,12 +105,12 @@ const mainNavItems: RBACNavItem[] = [
     |--------------------------------------------------------------------------
     */
 
-    {
-        title: 'Leave Applications',
-        href: '/leave-applications',
-        icon: CalendarDays,
-        permission: 'leave.view',
-        section: 'requests',
+   {
+    title: 'Leave Applications',
+    href: '/leave/applications',
+    icon: CalendarDays,
+    permission: 'leave.view',
+    section: 'requests',
     },
 
     {

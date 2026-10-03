@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LeaveApplicationStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -44,9 +45,12 @@ class LeaveApplication extends Model
 
             'total_days' => 'decimal:2',
 
+            'status' => LeaveApplicationStatus::class,
+
             'employee_confirmed' => 'boolean',
 
             'employee_confirmed_at' => 'datetime',
+
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',
@@ -56,24 +60,56 @@ class LeaveApplication extends Model
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Employee
+    |--------------------------------------------------------------------------
+    */
+
     public function employee(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'employee_id');
+        return $this->belongsTo(
+            User::class,
+            'employee_id'
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Leave Type
+    |--------------------------------------------------------------------------
+    */
 
     public function leaveType(): BelongsTo
     {
-        return $this->belongsTo(LeaveType::class);
+        return $this->belongsTo(
+            LeaveType::class
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Approval Workflow
+    |--------------------------------------------------------------------------
+    */
 
     public function approvalWorkflow(): BelongsTo
     {
-        return $this->belongsTo(ApprovalWorkflow::class);
+        return $this->belongsTo(
+            ApprovalWorkflow::class
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Approvals
+    |--------------------------------------------------------------------------
+    */
 
     public function approvals(): HasMany
     {
-        return $this->hasMany(LeaveApproval::class)
-            ->orderBy('step_order');
+        return $this->hasMany(
+            LeaveApproval::class
+        )->orderBy('step_order');
     }
 }

@@ -1,8 +1,5 @@
-import React, {
-    FormEvent,
-    useMemo,
-    useState,
-} from 'react';
+import type { FormEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
     Head,
@@ -12,731 +9,70 @@ import {
 } from '@inertiajs/react';
 
 import {
-    Activity,
     ArrowLeft,
     Building2,
     CalendarDays,
     Check,
     CheckCircle2,
-    CircleUserRound,
+    ChevronsUpDown,
     Clock3,
-    Copy,
     Edit3,
-    Eye,
-    EyeOff,
     KeyRound,
     Mail,
     Phone,
-    Save,
     Shield,
     ShieldCheck,
     User as UserIcon,
     UserRound,
-    X,
+    UsersRound,
 } from 'lucide-react';
 
-/*
-|--------------------------------------------------------------------------
-| Types
-|--------------------------------------------------------------------------
-*/
+import type {
+    UserFormData,
+    UserPageProps,
+} from '@/types/user';
+
+import {
+    getDisplayName,
+    getInitials,
+    normalizeUser,
+    safeString,
+} from '@/utils/user';
+
+import {
+    formatDate,
+    formatShortDate,
+} from '@/utils/formatting';
+
+import {
+    getStatusDot,
+} from '@/utils/user-status';
+
+import {
+    DetailItem,
+    SectionHeading,
+    StatusBadge,
+} from '@/components/admin/UserPrimitives';
+
+import UserAuditTrail from '@/components/admin/UserAuditTrail';
+import UserEditForm from '@/components/admin/UserEditForm';
+import UserResetPasswordModal from '@/components/admin/UserResetPasswordModal';
+
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 
-type OrganizationalUnit = {
-    id: number;
-    code: string;
-    name: string;
-};
-
-type Position = {
-    id: number;
-    name: string;
-};
-
-type Role = {
-    id: number;
-    name: string;
-};
-
-type UserRole = {
-    id: number;
-    name: string;
-};
-
-type UserData = {
-    id: number;
-
-    username?: string | null;
-    employee_number?: string | null;
-
-    name?: string | null;
-    first_name?: string | null;
-    middle_name?: string | null;
-    last_name?: string | null;
-
-    contact_number?: string | null;
-    email?: string | null;
-
-    organizational_unit?: OrganizationalUnit | null;
-    position?: Position | null;
-    roles?: UserRole[] | null;
-
-    account_status?: string | null;
-
-    last_login_at?: string | null;
-    password_changed_at?: string | null;
-
-    created_at?: string | null;
-    updated_at?: string | null;
-};
-
-type AuditLog = {
-    id: number;
-    action: string;
-    description: string;
-
-    changes?: Record<
-        string,
-        {
-            old?: unknown;
-            new?: unknown;
-            changed?: boolean;
-        }
-    > | null;
-
-    ip_address?: string | null;
-
-    created_at?: string | null;
-
-    actor?: {
-        id: number;
-        name?: string | null;
-        username?: string | null;
-    } | null;
-};
-
-type PageProps = {
-    user: UserData | { data: UserData };
-
-    organizationalUnits?: OrganizationalUnit[];
-    positions?: Position[];
-    roles?: Role[];
-
-    auditLogs?: AuditLog[];
-
-    flash?: {
-        success?: string;
-    };
-};
-
-type FormData = {
-    username: string;
-    employee_number: string;
-
-    name: string;
-    first_name: string;
-    middle_name: string;
-    last_name: string;
-
-    contact_number: string;
-    email: string;
-
-    organizational_unit_id: string;
-    position_id: string;
-
-    account_status: string;
-    role: string;
-
-    password: string;
-    password_confirmation: string;
-};
-
-/*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
-
-function normalizeUser(
-    user: UserData | { data: UserData },
-): UserData {
-    if (
-        user &&
-        typeof user === 'object' &&
-        'data' in user &&
-        user.data
-    ) {
-        return user.data;
-    }
-
-    return user as UserData;
-}
-
-function safeString(
-    value: string | null | undefined,
-): string {
-    return typeof value === 'string'
-        ? value
-        : '';
-}
-
-function getDisplayName(
-    user: UserData,
-): string {
-    const firstName = safeString(
-        user.first_name,
-    ).trim();
-
-    const middleName = safeString(
-        user.middle_name,
-    ).trim();
-
-    const lastName = safeString(
-        user.last_name,
-    ).trim();
-
-    const fullName = [
-        firstName,
-        middleName,
-        lastName,
-    ]
-        .filter(Boolean)
-        .join(' ');
-
-    return (
-        fullName ||
-        safeString(user.name).trim() ||
-        safeString(user.username).trim() ||
-        'User'
-    );
-}
-
-function getInitials(
-    user: UserData,
-): string {
-    const name =
-        getDisplayName(user).trim();
-
-    if (!name) {
-        return 'U';
-    }
-
-    const parts = name
-        .split(/\s+/)
-        .filter(Boolean);
-
-    if (parts.length === 1) {
-        return parts[0]
-            .slice(0, 2)
-            .toUpperCase();
-    }
-
-    return (
-        parts[0].charAt(0) +
-        parts[parts.length - 1].charAt(0)
-    ).toUpperCase();
-}
-
-function getStatusLabel(
-    status?: string | null,
-): string {
-    const value = safeString(status)
-        .trim()
-        .toLowerCase();
-
-    if (!value) {
-        return 'Unknown';
-    }
-
-    return value
-        .replace(/[_-]/g, ' ')
-        .replace(/\b\w/g, (letter) =>
-            letter.toUpperCase(),
-        );
-}
-
-function getStatusClass(
-    status?: string | null,
-): string {
-    const value = safeString(status)
-        .trim()
-        .toLowerCase();
-
-    switch (value) {
-        case 'active':
-            return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-
-        case 'inactive':
-        case 'disabled':
-        case 'suspended':
-            return 'border-red-200 bg-red-50 text-red-700';
-
-        case 'locked':
-            return 'border-amber-200 bg-amber-50 text-amber-700';
-
-        default:
-            return 'border-slate-200 bg-slate-50 text-slate-600';
-    }
-}
-
-function getStatusDot(
-    status?: string | null,
-): string {
-    const value = safeString(status)
-        .trim()
-        .toLowerCase();
-
-    switch (value) {
-        case 'active':
-            return 'bg-emerald-500';
-
-        case 'locked':
-            return 'bg-amber-500';
-
-        case 'inactive':
-        case 'disabled':
-        case 'suspended':
-            return 'bg-red-500';
-
-        default:
-            return 'bg-slate-400';
-    }
-}
-
-function formatDate(
-    value?: string | null,
-): string {
-    if (!value) {
-        return 'Never';
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return '—';
-    }
-
-    return date.toLocaleString(
-        undefined,
-        {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-        },
-    );
-}
-
-function formatShortDate(
-    value?: string | null,
-): string {
-    if (!value) {
-        return '—';
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return '—';
-    }
-
-    return date.toLocaleDateString(
-        undefined,
-        {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        },
-    );
-}
-
-function getAuditActorName(
-    audit: AuditLog,
-): string {
-    return (
-        safeString(
-            audit.actor?.name,
-        ).trim() ||
-        safeString(
-            audit.actor?.username,
-        ).trim() ||
-        'System'
-    );
-}
-
-function getAuditActionLabel(
-    action: string,
-): string {
-    switch (action) {
-        case 'password_reset':
-            return 'Password Reset';
-
-        case 'password_changed':
-            return 'Password Changed';
-
-        case 'user_updated':
-            return 'User Updated';
-
-        case 'user_created':
-            return 'User Created';
-
-        case 'user_deleted':
-            return 'User Deleted';
-
-        default:
-            return action
-                .replace(/[_-]/g, ' ')
-                .replace(/\b\w/g, (letter) =>
-                    letter.toUpperCase(),
-                );
-    }
-}
-
-function getAuditActionClass(
-    action: string,
-): string {
-    switch (action) {
-        case 'password_reset':
-            return 'border-amber-200 bg-amber-50 text-amber-700';
-
-        case 'password_changed':
-            return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-
-        case 'user_updated':
-            return 'border-blue-200 bg-blue-50 text-blue-700';
-
-        case 'user_created':
-            return 'border-violet-200 bg-violet-50 text-violet-700';
-
-        case 'user_deleted':
-            return 'border-red-200 bg-red-50 text-red-700';
-
-        default:
-            return 'border-slate-200 bg-slate-50 text-slate-600';
-    }
-}
-
-function formatAuditField(
-    field: string,
-): string {
-    return field
-        .replace(/[_-]/g, ' ')
-        .replace(/\b\w/g, (letter) =>
-            letter.toUpperCase(),
-        );
-}
-
-function formatAuditValue(
-    value: unknown,
-): string {
-    if (
-        value === null ||
-        value === undefined ||
-        value === ''
-    ) {
-        return 'Empty';
-    }
-
-    if (typeof value === 'boolean') {
-        return value ? 'Yes' : 'No';
-    }
-
-    return String(value);
-}
-
-function generateTemporaryPassword(
-    length = 14,
-): string {
-    const uppercase =
-        'ABCDEFGHJKLMNPQRSTUVWXYZ';
-
-    const lowercase =
-        'abcdefghijkmnopqrstuvwxyz';
-
-    const numbers =
-        '23456789';
-
-    const symbols =
-        '!@#$%^&*_-+=';
-
-    const all =
-        uppercase +
-        lowercase +
-        numbers +
-        symbols;
-
-    const values =
-        new Uint32Array(length);
-
-    window.crypto.getRandomValues(
-        values,
-    );
-
-    const password = Array.from(
-        values,
-        (value) =>
-            all[value % all.length],
-    );
-
-    password[0] =
-        uppercase[
-            values[0] %
-                uppercase.length
-        ];
-
-    password[1] =
-        lowercase[
-            values[1] %
-                lowercase.length
-        ];
-
-    password[2] =
-        numbers[
-            values[2] %
-                numbers.length
-        ];
-
-    password[3] =
-        symbols[
-            values[3] %
-                symbols.length
-        ];
-
-    return password.join('');
-}
-
-/*
-|--------------------------------------------------------------------------
-| Reusable UI
-|--------------------------------------------------------------------------
-*/
-
-function StatusBadge({
-    status,
-}: {
-    status?: string | null;
-}) {
-    return (
-        <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] ${getStatusClass(
-                status,
-            )}`}
-        >
-            <span
-                className={`h-1.5 w-1.5 rounded-full ${getStatusDot(
-                    status,
-                )}`}
-            />
-
-            {getStatusLabel(status)}
-        </span>
-    );
-}
-
-function SectionHeading({
-    icon: Icon,
-    title,
-    description,
-    action,
-}: {
-    icon: typeof UserRound;
-    title: string;
-    description?: string;
-    action?: React.ReactNode;
-}) {
-    return (
-        <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#173B67] ring-1 ring-blue-100">
-                    <Icon
-                        className="h-4 w-4"
-                        strokeWidth={1.8}
-                    />
-                </div>
-
-                <div className="min-w-0">
-                    <h2 className="text-sm font-semibold text-slate-900">
-                        {title}
-                    </h2>
-
-                    {description && (
-                        <p className="mt-0.5 text-[11px] leading-5 text-slate-500">
-                            {description}
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            {action}
-        </div>
-    );
-}
-
-function DetailItem({
-    label,
-    value,
-    icon,
-    mono = false,
-}: {
-    label: string;
-    value: string;
-    icon?: React.ReactNode;
-    mono?: boolean;
-}) {
-    return (
-        <div className="min-w-0">
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                {label}
-            </p>
-
-            <div className="flex min-h-9 min-w-0 items-center gap-2">
-                {icon && (
-                    <span className="shrink-0 text-slate-400">
-                        {icon}
-                    </span>
-                )}
-
-                <span
-                    className={`min-w-0 truncate text-[13px] font-medium text-slate-700 ${
-                        mono
-                            ? 'font-mono'
-                            : ''
-                    }`}
-                >
-                    {value || '—'}
-                </span>
-            </div>
-        </div>
-    );
-}
-
-function InputField({
-    label,
-    value,
-    onChange,
-    error,
-    type = 'text',
-    required = false,
-    placeholder,
-}: {
-    label: string;
-    value: string;
-    onChange: (
-        value: string,
-    ) => void;
-    error?: string;
-    type?: string;
-    required?: boolean;
-    placeholder?: string;
-}) {
-    return (
-        <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500">
-                {label}
-
-                {required && (
-                    <span className="ml-1 text-red-500">
-                        *
-                    </span>
-                )}
-            </label>
-
-            <input
-                type={type}
-                value={value}
-                onChange={(event) =>
-                    onChange(
-                        event.target.value,
-                    )
-                }
-                placeholder={placeholder}
-                className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#173B67] focus:ring-2 focus:ring-[#173B67]/10 ${
-                    error
-                        ? 'border-red-300'
-                        : 'border-slate-200 hover:border-slate-300'
-                }`}
-            />
-
-            {error && (
-                <p className="mt-1 text-[11px] font-medium text-red-600">
-                    {error}
-                </p>
-            )}
-        </div>
-    );
-}
-
-function SelectField({
-    label,
-    value,
-    onChange,
-    options,
-    error,
-    required = false,
-}: {
-    label: string;
-    value: string;
-    onChange: (
-        value: string,
-    ) => void;
-    options: {
-        value: string;
-        label: string;
-    }[];
-    error?: string;
-    required?: boolean;
-}) {
-    return (
-        <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500">
-                {label}
-
-                {required && (
-                    <span className="ml-1 text-red-500">
-                        *
-                    </span>
-                )}
-            </label>
-
-            <select
-                value={value}
-                onChange={(event) =>
-                    onChange(
-                        event.target.value,
-                    )
-                }
-                className={`h-10 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#173B67] focus:ring-2 focus:ring-[#173B67]/10 ${
-                    error
-                        ? 'border-red-300'
-                        : 'border-slate-200 hover:border-slate-300'
-                }`}
-            >
-                {options.map(
-                    (option) => (
-                        <option
-                            key={
-                                option.value
-                            }
-                            value={
-                                option.value
-                            }
-                        >
-                            {
-                                option.label
-                            }
-                        </option>
-                    ),
-                )}
-            </select>
-
-            {error && (
-                <p className="mt-1 text-[11px] font-medium text-red-600">
-                    {error}
-                </p>
-            )}
-        </div>
-    );
-}
 
 /*
 |--------------------------------------------------------------------------
@@ -745,20 +81,28 @@ function SelectField({
 */
 
 export default function ViewUser() {
-    const page =
-        usePage<PageProps>();
+    const page = usePage<UserPageProps>();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Normalize User
+    |--------------------------------------------------------------------------
+    */
 
     const user = useMemo(
-        () =>
-            normalizeUser(
-                page.props.user,
-            ),
+        () => normalizeUser(page.props.user),
         [page.props.user],
     );
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Page Data
+    |--------------------------------------------------------------------------
+    */
+
     const organizationalUnits =
-        page.props.organizationalUnits ??
-        [];
+        page.props.organizationalUnits ?? [];
 
     const positions =
         page.props.positions ?? [];
@@ -766,34 +110,85 @@ export default function ViewUser() {
     const roles =
         page.props.roles ?? [];
 
+    const managers =
+        page.props.managers ?? [];
+
     const auditLogs =
         page.props.auditLogs ?? [];
 
-    const [editing, setEditing] =
-        useState(false);
+
+    /*
+    |--------------------------------------------------------------------------
+    | UI State
+    |--------------------------------------------------------------------------
+    */
+
+    const [
+        editing,
+        setEditing,
+    ] = useState(false);
 
     const [
         showResetModal,
         setShowResetModal,
     ] = useState(false);
 
-    const [
-        temporaryPassword,
-        setTemporaryPassword,
-    ] = useState('');
+    const [localSuccess, setLocalSuccess] = useState<string | null>(null);
+    const [localError, setLocalError] = useState<string | null>(null);
+    const [flashVisible, setFlashVisible] = useState(false);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Flash Messages
+    |--------------------------------------------------------------------------
+    |
+    | The server flash is the primary source. Local messages are only used
+    | as a fallback so the user still gets immediate feedback after an edit.
+    |--------------------------------------------------------------------------
+    */
+
+    const successMessage =
+        page.props.flash?.success || localSuccess;
+
+    const errorMessage =
+        page.props.flash?.error || localError;
+
+    useEffect(() => {
+        if (!successMessage && !errorMessage) {
+            setFlashVisible(false);
+            return;
+        }
+
+        setFlashVisible(true);
+
+        const timer = window.setTimeout(() => {
+            setFlashVisible(false);
+        }, 4000);
+
+        return () => window.clearTimeout(timer);
+    }, [successMessage, errorMessage]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reporting Manager Selector
+    |--------------------------------------------------------------------------
+    */
 
     const [
-        copiedPassword,
-        setCopiedPassword,
+        managerSelectorOpen,
+        setManagerSelectorOpen,
     ] = useState(false);
 
-    const [
-        showTemporaryPassword,
-        setShowTemporaryPassword,
-    ] = useState(false);
+
+    /*
+    |--------------------------------------------------------------------------
+    | User Form
+    |--------------------------------------------------------------------------
+    */
 
     const form =
-        useForm<FormData>({
+        useForm<UserFormData>({
             username:
                 safeString(
                     user.username,
@@ -835,8 +230,7 @@ export default function ViewUser() {
                 ),
 
             organizational_unit_id:
-                user.organizational_unit
-                    ?.id
+                user.organizational_unit?.id
                     ? String(
                           user
                               .organizational_unit
@@ -851,19 +245,47 @@ export default function ViewUser() {
                       )
                     : '',
 
+            /*
+            |--------------------------------------------------------------------------
+            | Reporting Manager / Head
+            |--------------------------------------------------------------------------
+            */
+
+            reports_to_user_id:
+                user.reports_to_user_id !==
+                    null &&
+                user.reports_to_user_id !==
+                    undefined
+                    ? String(
+                          user.reports_to_user_id,
+                      )
+                    : user.reportsTo?.id
+                      ? String(
+                            user.reportsTo.id,
+                        )
+                      : '',
+
             account_status:
                 safeString(
                     user.account_status,
                 ),
 
             role:
-                user.roles?.[0]
-                    ?.name ?? '',
+                user.roles?.[0]?.name ??
+                '',
 
             password: '',
+
             password_confirmation:
                 '',
         });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Form Errors
+    |--------------------------------------------------------------------------
+    */
 
     const errors =
         form.errors as Record<
@@ -871,15 +293,158 @@ export default function ViewUser() {
             string | undefined
         >;
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Display Information
+    |--------------------------------------------------------------------------
+    */
+
     const displayName =
         getDisplayName(user);
 
     const initials =
         getInitials(user);
 
+
     /*
     |--------------------------------------------------------------------------
-    | Edit
+    | Current Reporting Manager
+    |--------------------------------------------------------------------------
+    |
+    | Prefer the fully-loaded relationship.
+    |
+    | If reportsTo is not included in UserResource,
+    | fallback to the managers collection using
+    | reports_to_user_id.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    const currentManager = useMemo(() => {
+        if (user.reportsTo) {
+            return user.reportsTo;
+        }
+
+        if (
+            user.reports_to_user_id ===
+                null ||
+            user.reports_to_user_id ===
+                undefined
+        ) {
+            return null;
+        }
+
+        return (
+            managers.find(
+                (manager) =>
+                    manager.id ===
+                    user.reports_to_user_id,
+            ) ?? null
+        );
+    }, [
+        user.reportsTo,
+        user.reports_to_user_id,
+        managers,
+    ]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Selected Manager
+    |--------------------------------------------------------------------------
+    */
+
+    const selectedManager =
+        useMemo(() => {
+            const managerId =
+                form.data
+                    .reports_to_user_id;
+
+            if (!managerId) {
+                return null;
+            }
+
+            return (
+                managers.find(
+                    (manager) =>
+                        String(
+                            manager.id,
+                        ) === managerId,
+                ) ?? null
+            );
+        }, [
+            managers,
+            form.data
+                .reports_to_user_id,
+        ]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Manager Search Metadata
+    |--------------------------------------------------------------------------
+    |
+    | The shadcn Command component performs the actual search. We expose
+    | multiple searchable values through the item's value so administrators
+    | can find a manager by name, employee number, position, or unit.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    const getManagerSearchValue = (
+        manager: (typeof managers)[number],
+    ): string => {
+        return [
+            safeString(manager.name),
+            safeString(manager.employee_number),
+            safeString(manager.position?.name),
+            safeString(manager.organizational_unit?.name),
+        ]
+            .filter(Boolean)
+            .join(' ');
+    };
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Manager Initials
+    |--------------------------------------------------------------------------
+    */
+
+    const getManagerInitials = (
+        name?: string | null,
+    ): string => {
+        const value =
+            safeString(name).trim();
+
+        if (!value) {
+            return 'U';
+        }
+
+        const parts =
+            value
+                .split(/\s+/)
+                .filter(Boolean);
+
+        if (parts.length === 1) {
+            return parts[0]
+                .slice(0, 2)
+                .toUpperCase();
+        }
+
+        return (
+            parts[0].charAt(0) +
+            parts[
+                parts.length - 1
+            ].charAt(0)
+        ).toUpperCase();
+    };
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Submit Edit
     |--------------------------------------------------------------------------
     */
 
@@ -888,6 +453,14 @@ export default function ViewUser() {
     ) => {
         event.preventDefault();
 
+        if (form.processing) {
+            return;
+        }
+
+        setLocalSuccess(null);
+        setLocalError(null);
+        setFlashVisible(false);
+
         form.put(
             `/admin/users/${user.id}`,
             {
@@ -895,124 +468,121 @@ export default function ViewUser() {
 
                 onSuccess: () => {
                     setEditing(false);
-                },
-            },
-        );
-    };
-
-    /*
-    |--------------------------------------------------------------------------
-    | Reset Password
-    |--------------------------------------------------------------------------
-    */
-
-    const resetPassword = () => {
-        const password =
-            generateTemporaryPassword();
-
-        setTemporaryPassword(
-            password,
-        );
-
-        setCopiedPassword(false);
-
-        setShowTemporaryPassword(
-            false,
-        );
-
-        form.transform((data) => ({
-            ...data,
-            password,
-            password_confirmation:
-                password,
-        }));
-
-        form.put(
-            `/admin/users/${user.id}`,
-            {
-                preserveScroll: true,
-
-                onSuccess: () => {
-                    setShowTemporaryPassword(
-                        true,
-                    );
+                    setManagerSelectorOpen(false);
+                    form.clearErrors();
+                    setLocalSuccess('User account updated successfully.');
+                    setFlashVisible(true);
+                    setFlashVisible(true);
                 },
 
                 onError: () => {
-                    setTemporaryPassword(
-                        '',
-                    );
-                },
-
-                onFinish: () => {
-                    form.transform(
-                        (data) => ({
-                            ...data,
-                            password: '',
-                            password_confirmation:
-                                '',
-                        }),
-                    );
+                    setLocalError('Unable to update the user account. Please review the highlighted fields.');
+                    setFlashVisible(true);
+                    setFlashVisible(true);
                 },
             },
         );
     };
 
-    const copyTemporaryPassword =
-        async () => {
-            if (
-                !temporaryPassword
-            ) {
-                return;
-            }
 
-            try {
-                await navigator.clipboard.writeText(
-                    temporaryPassword,
-                );
+    /*
+    |--------------------------------------------------------------------------
+    | Cancel Edit
+    |--------------------------------------------------------------------------
+    */
 
-                setCopiedPassword(
-                    true,
-                );
+    const cancelEdit = () => {
+        form.setData({
+            username:
+                safeString(
+                    user.username,
+                ),
 
-                window.setTimeout(
-                    () =>
-                        setCopiedPassword(
-                            false,
-                        ),
-                    1800,
-                );
-            } catch {
-                setCopiedPassword(
-                    false,
-                );
-            }
-        };
+            employee_number:
+                safeString(
+                    user.employee_number,
+                ),
 
-    const closeResetModal =
-        () => {
-            if (
-                form.processing
-            ) {
-                return;
-            }
+            name:
+                safeString(
+                    user.name,
+                ),
 
-            setShowResetModal(
-                false,
-            );
+            first_name:
+                safeString(
+                    user.first_name,
+                ),
 
-            setTemporaryPassword(
+            middle_name:
+                safeString(
+                    user.middle_name,
+                ),
+
+            last_name:
+                safeString(
+                    user.last_name,
+                ),
+
+            contact_number:
+                safeString(
+                    user.contact_number,
+                ),
+
+            email:
+                safeString(
+                    user.email,
+                ),
+
+            organizational_unit_id:
+                user.organizational_unit?.id
+                    ? String(
+                          user
+                              .organizational_unit
+                              .id,
+                      )
+                    : '',
+
+            position_id:
+                user.position?.id
+                    ? String(
+                          user.position.id,
+                      )
+                    : '',
+
+            reports_to_user_id:
+                user.reports_to_user_id !==
+                    null &&
+                user.reports_to_user_id !==
+                    undefined
+                    ? String(
+                          user.reports_to_user_id,
+                      )
+                    : user.reportsTo?.id
+                      ? String(
+                            user.reportsTo.id,
+                        )
+                      : '',
+
+            account_status:
+                safeString(
+                    user.account_status,
+                ),
+
+            role:
+                user.roles?.[0]?.name ??
                 '',
-            );
 
-            setCopiedPassword(
-                false,
-            );
+            password: '',
 
-            setShowTemporaryPassword(
-                false,
-            );
-        };
+            password_confirmation:
+                '',
+        });
+
+        form.clearErrors();
+
+        setEditing(false);
+    };
+
 
     /*
     |--------------------------------------------------------------------------
@@ -1030,19 +600,18 @@ export default function ViewUser() {
 
                 <div className="mx-auto w-full max-w-[1500px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
 
-                    {/* =====================================================
+                    {/* =========================================================
                         PAGE HEADER
-                    ====================================================== */}
+                    ========================================================== */}
 
                     <header className="mb-5">
-
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
                             <div className="flex items-center gap-3">
 
                                 <Link
                                     href="/admin/users"
-                                    className="group flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-[#173B67]"
+                                    className="group flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-[#173B67]"
                                 >
                                     <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
                                 </Link>
@@ -1066,8 +635,8 @@ export default function ViewUser() {
                                         User Account
                                     </h1>
                                 </div>
-
                             </div>
+
 
                             {!editing && (
                                 <div className="flex items-center gap-2">
@@ -1079,12 +648,13 @@ export default function ViewUser() {
                                                 true,
                                             )
                                         }
-                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 text-xs font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                                        className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 text-xs font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
                                     >
                                         <KeyRound className="h-3.5 w-3.5" />
 
                                         Reset Password
                                     </button>
+
 
                                     <button
                                         type="button"
@@ -1093,7 +663,7 @@ export default function ViewUser() {
                                                 true,
                                             )
                                         }
-                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#123052]"
+                                        className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#123052]"
                                     >
                                         <Edit3 className="h-3.5 w-3.5" />
 
@@ -1104,24 +674,55 @@ export default function ViewUser() {
                             )}
 
                         </div>
-
                     </header>
 
-                    {/* =====================================================
-                        PROFILE HERO
-                    ====================================================== */}
+
+                    {/* =========================================================
+                        FLASH NOTIFICATION
+                    ========================================================== */}
+
+                    {flashVisible && (successMessage || errorMessage) && (
+                        <div
+                            className="fixed right-4 top-4 z-[100] w-[calc(100%-2rem)] max-w-sm sm:right-6 sm:top-6"
+                            role={successMessage ? 'status' : 'alert'}
+                            aria-live="polite"
+                        >
+                            {successMessage ? (
+                                <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg shadow-slate-900/10">
+                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="font-semibold">Success</p>
+                                        <p className="mt-0.5 text-xs text-emerald-700">{successMessage}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg shadow-slate-900/10">
+                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                        !
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="font-semibold">Unable to update</p>
+                                        <p className="mt-0.5 text-xs text-red-700">{errorMessage}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+
+                    {/* =========================================================
+                        USER SUMMARY
+                    ========================================================== */}
 
                     <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_3px_16px_rgba(15,23,42,0.045)]">
-
-                        {/* Corporate accent */}
 
                         <div className="absolute inset-y-0 left-0 w-1 bg-[#173B67]" />
 
                         <div className="px-5 py-6 sm:px-7">
 
                             <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-
-                                {/* Identity */}
 
                                 <div className="flex min-w-0 items-center gap-4 sm:gap-5">
 
@@ -1139,12 +740,15 @@ export default function ViewUser() {
 
                                     </div>
 
+
                                     <div className="min-w-0">
 
                                         <div className="flex flex-wrap items-center gap-2">
 
                                             <h2 className="truncate text-xl font-bold tracking-tight text-slate-950 sm:text-[22px]">
-                                                {displayName}
+                                                {
+                                                    displayName
+                                                }
                                             </h2>
 
                                             <StatusBadge
@@ -1155,14 +759,14 @@ export default function ViewUser() {
 
                                         </div>
 
+
                                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
 
                                             <span className="font-medium text-slate-600">
                                                 @
                                                 {safeString(
                                                     user.username,
-                                                ) ||
-                                                    '—'}
+                                                ) || '—'}
                                             </span>
 
                                             <span className="hidden text-slate-300 sm:inline">
@@ -1174,8 +778,7 @@ export default function ViewUser() {
                                                 <strong className="font-semibold text-slate-700">
                                                     {safeString(
                                                         user.employee_number,
-                                                    ) ||
-                                                        '—'}
+                                                    ) || '—'}
                                                 </strong>
                                             </span>
 
@@ -1184,11 +787,11 @@ export default function ViewUser() {
                                             </span>
 
                                             <span>
-                                                ID #
-                                                {user.id}
+                                                ID #{user.id}
                                             </span>
 
                                         </div>
+
 
                                         <div className="mt-3 flex flex-wrap gap-2">
 
@@ -1197,12 +800,12 @@ export default function ViewUser() {
                                                     <UserRound className="h-3 w-3 text-slate-400" />
 
                                                     {
-                                                        user
-                                                            .position
+                                                        user.position
                                                             .name
                                                     }
                                                 </span>
                                             )}
+
 
                                             {user.organizational_unit?.name && (
                                                 <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">
@@ -1216,81 +819,82 @@ export default function ViewUser() {
                                                 </span>
                                             )}
 
+
+                                            {currentManager && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-[#173B67]">
+                                                    <UsersRound className="h-3 w-3" />
+
+                                                    Reports to:{' '}
+
+                                                    {
+                                                        currentManager.name
+                                                    }
+                                                </span>
+                                            )}
+
                                         </div>
 
                                     </div>
 
                                 </div>
 
-                                {/* Account metrics */}
 
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:min-w-[520px]">
 
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-
-                                        <div className="flex items-center gap-2">
-
-                                            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-500 ring-1 ring-slate-200">
-                                                <Clock3 className="h-3.5 w-3.5" />
-                                            </div>
-
-                                            <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400">
-                                                Last Login
-                                            </span>
-
-                                        </div>
-
-                                        <p className="mt-2 truncate text-[11px] font-semibold text-slate-700">
-                                            {formatDate(
+                                    {[
+                                        {
+                                            icon: Clock3,
+                                            label: 'Last Login',
+                                            value: formatDate(
                                                 user.last_login_at,
-                                            )}
-                                        </p>
-
-                                    </div>
-
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-
-                                        <div className="flex items-center gap-2">
-
-                                            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-500 ring-1 ring-slate-200">
-                                                <KeyRound className="h-3.5 w-3.5" />
-                                            </div>
-
-                                            <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400">
-                                                Password
-                                            </span>
-
-                                        </div>
-
-                                        <p className="mt-2 truncate text-[11px] font-semibold text-slate-700">
-                                            {formatShortDate(
+                                            ),
+                                        },
+                                        {
+                                            icon: KeyRound,
+                                            label: 'Password',
+                                            value: formatShortDate(
                                                 user.password_changed_at,
-                                            )}
-                                        </p>
-
-                                    </div>
-
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-
-                                        <div className="flex items-center gap-2">
-
-                                            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-500 ring-1 ring-slate-200">
-                                                <CalendarDays className="h-3.5 w-3.5" />
-                                            </div>
-
-                                            <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400">
-                                                Created
-                                            </span>
-
-                                        </div>
-
-                                        <p className="mt-2 truncate text-[11px] font-semibold text-slate-700">
-                                            {formatShortDate(
+                                            ),
+                                        },
+                                        {
+                                            icon: CalendarDays,
+                                            label: 'Created',
+                                            value: formatShortDate(
                                                 user.created_at,
-                                            )}
-                                        </p>
+                                            ),
+                                        },
+                                    ].map(
+                                        (
+                                            metric,
+                                        ) => (
+                                            <div
+                                                key={
+                                                    metric.label
+                                                }
+                                                className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3"
+                                            >
+                                                <div className="flex items-center gap-2">
 
-                                    </div>
+                                                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-500 ring-1 ring-slate-200">
+                                                        <metric.icon className="h-3.5 w-3.5" />
+                                                    </div>
+
+                                                    <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                                                        {
+                                                            metric.label
+                                                        }
+                                                    </span>
+
+                                                </div>
+
+                                                <p className="mt-2 truncate text-[11px] font-semibold text-slate-700">
+                                                    {
+                                                        metric.value
+                                                    }
+                                                </p>
+                                            </div>
+                                        ),
+                                    )}
 
                                 </div>
 
@@ -1300,35 +904,450 @@ export default function ViewUser() {
 
                     </section>
 
-                    {/* =====================================================
-                        MAIN CONTENT
-                    ====================================================== */}
+
+                    {/* =========================================================
+                        CONTENT
+                    ========================================================== */}
 
                     <div className="mt-5">
 
-                        {!editing ? (
+                        {editing ? (
 
                             <div className="space-y-5">
 
                                 {/* =================================================
-                                    INFORMATION GRID
+                                    REPORTING STRUCTURE
                                 ================================================== */}
+
+                                <section className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]">
+
+                                    <div className="border-b border-blue-100 bg-blue-50/40 px-5 py-4">
+
+                                        <div className="flex items-start gap-3">
+
+                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[#173B67]">
+                                                <UsersRound className="h-[18px] w-[18px]" />
+                                            </div>
+
+                                            <div className="min-w-0">
+
+                                                <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">
+                                                    Reporting Structure
+                                                </h2>
+
+                                                <p className="mt-1 text-[13px] leading-5 text-slate-500">
+                                                    Assign the employee's direct manager or department head for leave approval routing.
+                                                </p>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+
+                                    <div className="p-5">
+
+                                        <div className="max-w-2xl">
+
+                                            <label
+                                                htmlFor="reports_to_user_id"
+                                                className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-slate-500"
+                                            >
+                                                Reporting Manager / Head
+                                            </label>
+
+
+                                            <Popover
+                                                open={
+                                                    managerSelectorOpen
+                                                }
+                                                onOpenChange={
+                                                    setManagerSelectorOpen
+                                                }
+                                            >
+                                                <PopoverTrigger asChild>
+                                                    <button
+                                                        id="reports_to_user_id"
+                                                        type="button"
+                                                        role="combobox"
+                                                        aria-expanded={
+                                                            managerSelectorOpen
+                                                        }
+                                                        aria-controls="reporting-manager-list"
+                                                        disabled={
+                                                            form.processing
+                                                        }
+                                                        className={`group flex h-12 w-full items-center justify-between rounded-xl border bg-white px-3.5 text-left shadow-sm outline-none transition-all ${
+                                                            errors.reports_to_user_id
+                                                                ? 'border-red-300 ring-2 ring-red-500/10'
+                                                                : managerSelectorOpen
+                                                                  ? 'border-[#173B67] ring-2 ring-[#173B67]/10'
+                                                                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+                                                        } disabled:cursor-not-allowed disabled:bg-slate-50`}
+                                                    >
+                                                        {selectedManager ? (
+                                                            <div className="flex min-w-0 items-center gap-3">
+                                                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-[10px] font-bold text-white">
+                                                                    {getManagerInitials(
+                                                                        selectedManager.name,
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-[13px] font-semibold text-slate-800">
+                                                                        {
+                                                                            selectedManager.name
+                                                                        }
+                                                                    </p>
+
+                                                                    <p className="truncate text-[11px] text-slate-500">
+                                                                        {selectedManager.position?.name ||
+                                                                            'Manager / Head'}
+
+                                                                        {selectedManager.organizational_unit?.name
+                                                                            ? ` · ${selectedManager.organizational_unit.name}`
+                                                                            : ''}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex min-w-0 items-center gap-3">
+                                                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-400">
+                                                                    <UsersRound className="h-3.5 w-3.5" />
+                                                                </div>
+
+                                                                <div className="min-w-0">
+                                                                    <p className="text-[13px] font-medium text-slate-500">
+                                                                        Select a reporting manager
+                                                                    </p>
+
+                                                                    <p className="text-[10px] text-slate-400">
+                                                                        Search by name, position, or department
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <ChevronsUpDown className="ml-3 h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-slate-600" />
+                                                    </button>
+                                                </PopoverTrigger>
+
+                                                <PopoverContent
+                                                    align="start"
+                                                    sideOffset={6}
+                                                    className="w-[var(--radix-popover-trigger-width)] min-w-[420px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-[0_12px_40px_rgba(15,23,42,0.12)]"
+                                                >
+                                                    <Command
+                                                        id="reporting-manager-list"
+                                                        className="bg-white"
+                                                    >
+                                                        <div className="border-b border-slate-100 p-2">
+                                                            <CommandInput
+                                                                placeholder="Search name, employee no., position, or department..."
+                                                                className="h-10 text-xs"
+                                                            />
+                                                        </div>
+
+                                                        <CommandList className="max-h-[320px]">
+                                                            <CommandEmpty className="py-8 text-center">
+                                                                <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+                                                                    <UsersRound className="h-4 w-4 text-slate-400" />
+                                                                </div>
+
+                                                                <p className="text-xs font-semibold text-slate-700">
+                                                                    No manager found
+                                                                </p>
+
+                                                                <p className="mt-1 text-[11px] text-slate-400">
+                                                                    Try another name, position, or department.
+                                                                </p>
+                                                            </CommandEmpty>
+
+                                                            <CommandGroup
+                                                                heading="Reporting Managers & Heads"
+                                                                className="px-2 pb-2 pt-2"
+                                                            >
+                                                                <CommandItem
+                                                                    value="no reporting manager"
+                                                                    onSelect={() => {
+                                                                        form.setData(
+                                                                            'reports_to_user_id',
+                                                                            '',
+                                                                        );
+
+                                                                        setManagerSelectorOpen(
+                                                                            false,
+                                                                        );
+                                                                    }}
+                                                                    className="mb-1 rounded-lg px-3 py-2.5"
+                                                                >
+                                                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-400">
+                                                                        <UsersRound className="h-3.5 w-3.5" />
+                                                                    </div>
+
+                                                                    <div className="ml-3 min-w-0 flex-1">
+                                                                        <p className="text-xs font-semibold text-slate-700">
+                                                                            No reporting manager
+                                                                        </p>
+
+                                                                        <p className="text-[10px] text-slate-400">
+                                                                            Remove the current reporting assignment
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <Check
+                                                                        className={`ml-3 h-4 w-4 shrink-0 ${
+                                                                            !form.data.reports_to_user_id
+                                                                                ? 'opacity-100 text-[#173B67]'
+                                                                                : 'opacity-0'
+                                                                        }`}
+                                                                    />
+                                                                </CommandItem>
+
+                                                                {managers.map(
+                                                                    (
+                                                                        manager,
+                                                                    ) => {
+                                                                        const managerId =
+                                                                            String(
+                                                                                manager.id,
+                                                                            );
+
+                                                                        const isSelected =
+                                                                            form
+                                                                                .data
+                                                                                .reports_to_user_id ===
+                                                                            managerId;
+
+                                                                        const position =
+                                                                            safeString(
+                                                                                manager.position?.name,
+                                                                            ) ||
+                                                                            'Manager / Head';
+
+                                                                        const unit =
+                                                                            safeString(
+                                                                                manager.organizational_unit?.name,
+                                                                            );
+
+                                                                        const employeeNumber =
+                                                                            safeString(
+                                                                                manager.employee_number,
+                                                                            );
+
+                                                                        return (
+                                                                            <CommandItem
+                                                                                key={
+                                                                                    manager.id
+                                                                                }
+                                                                                value={getManagerSearchValue(
+                                                                                    manager,
+                                                                                )}
+                                                                                onSelect={() => {
+                                                                                    form.setData(
+                                                                                        'reports_to_user_id',
+                                                                                        managerId,
+                                                                                    );
+
+                                                                                    setManagerSelectorOpen(
+                                                                                        false,
+                                                                                    );
+                                                                                }}
+                                                                                className="rounded-lg px-3 py-2.5 data-[selected=true]:bg-slate-50"
+                                                                            >
+                                                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-[10px] font-bold text-white">
+                                                                                    {getManagerInitials(
+                                                                                        manager.name,
+                                                                                    )}
+                                                                                </div>
+
+                                                                                <div className="ml-3 min-w-0 flex-1">
+                                                                                    <div className="flex min-w-0 items-center gap-2">
+                                                                                        <p className="truncate text-xs font-semibold text-slate-800">
+                                                                                            {
+                                                                                                manager.name
+                                                                                            }
+                                                                                        </p>
+
+                                                                                        {isSelected && (
+                                                                                            <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                                                Selected
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                                                                                        {
+                                                                                            position
+                                                                                        }
+
+                                                                                        {unit
+                                                                                            ? ` · ${unit}`
+                                                                                            : ''}
+                                                                                    </p>
+
+                                                                                    {employeeNumber && (
+                                                                                        <p className="mt-0.5 truncate font-mono text-[9px] text-slate-400">
+                                                                                            Employee No.{' '}
+                                                                                            {
+                                                                                                employeeNumber
+                                                                                            }
+                                                                                        </p>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                <Check
+                                                                                    className={`ml-3 h-4 w-4 shrink-0 text-[#173B67] ${
+                                                                                        isSelected
+                                                                                            ? 'opacity-100'
+                                                                                            : 'opacity-0'
+                                                                                    }`}
+                                                                                />
+                                                                            </CommandItem>
+                                                                        );
+                                                                    },
+                                                                )}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+
+
+                                            {errors.reports_to_user_id && (
+                                                <p className="mt-1.5 text-[11px] font-medium text-red-600">
+                                                    {
+                                                        errors.reports_to_user_id
+                                                    }
+                                                </p>
+                                            )}
+
+
+                                            {selectedManager ? (
+
+                                                <div className="mt-3 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+
+                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-xs font-bold text-white">
+                                                        {getManagerInitials(
+                                                            selectedManager.name,
+                                                        )}
+                                                    </div>
+
+
+                                                    <div className="min-w-0">
+
+                                                        <div className="flex flex-wrap items-center gap-2">
+
+                                                            <p className="text-sm font-semibold text-slate-800">
+                                                                {
+                                                                    selectedManager.name
+                                                                }
+                                                            </p>
+
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                <CheckCircle2 className="h-3 w-3" />
+                                                                Assigned
+                                                            </span>
+
+                                                        </div>
+
+
+                                                        <p className="mt-0.5 text-xs text-slate-500">
+                                                            {
+                                                                selectedManager.position?.name ||
+                                                                'Manager / Head'
+                                                            }
+                                                        </p>
+
+
+                                                        {selectedManager.organizational_unit?.name && (
+                                                            <p className="mt-0.5 text-[11px] text-slate-400">
+                                                                {
+                                                                    selectedManager
+                                                                        .organizational_unit
+                                                                        .name
+                                                                }
+                                                            </p>
+                                                        )}
+
+                                                    </div>
+
+                                                </div>
+
+                                            ) : (
+
+                                                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+
+                                                    <p className="text-xs font-semibold text-amber-800">
+                                                        No reporting manager assigned
+                                                    </p>
+
+                                                    <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                                                        This employee currently has no manager/head configured for leave approval routing.
+                                                    </p>
+
+                                                </div>
+
+                                            )}
+
+                                        </div>
+
+                                    </div>
+
+                                </section>
+
+
+                                {/* =================================================
+                                    USER EDIT FORM
+                                ================================================== */}
+
+                                <UserEditForm
+                                    form={form}
+                                    errors={errors}
+                                    organizationalUnits={
+                                        organizationalUnits
+                                    }
+                                    positions={
+                                        positions
+                                    }
+                                    roles={
+                                        roles
+                                    }
+                                    onSubmit={
+                                        submitEdit
+                                    }
+                                    onCancel={
+                                        cancelEdit
+                                    }
+                                />
+
+                            </div>
+
+                        ) : (
+
+                            <div className="space-y-5">
 
                                 <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
 
-                                    {/* Personal Information */}
+                                    {/* =================================================
+                                        PERSONAL INFORMATION
+                                    ================================================== */}
 
                                     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]">
 
                                         <div className="border-b border-slate-100 px-5 py-4">
 
                                             <SectionHeading
-                                                icon={UserIcon}
+                                                icon={
+                                                    UserIcon
+                                                }
                                                 title="Personal Information"
                                                 description="Employee identity and contact details."
                                             />
 
                                         </div>
+
 
                                         <div className="grid gap-x-7 gap-y-6 p-5 sm:grid-cols-2">
 
@@ -1403,19 +1422,25 @@ export default function ViewUser() {
 
                                     </section>
 
-                                    {/* Organization */}
+
+                                    {/* =================================================
+                                        ORGANIZATION & ACCESS
+                                    ================================================== */}
 
                                     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]">
 
                                         <div className="border-b border-slate-100 px-5 py-4">
 
                                             <SectionHeading
-                                                icon={Building2}
+                                                icon={
+                                                    Building2
+                                                }
                                                 title="Organization & Access"
                                                 description="Organizational placement and system access."
                                             />
 
                                         </div>
+
 
                                         <div className="space-y-6 p-5">
 
@@ -1436,16 +1461,93 @@ export default function ViewUser() {
                                                 }
                                             />
 
+
                                             <DetailItem
                                                 label="Position"
                                                 value={
                                                     safeString(
-                                                        user.position
-                                                            ?.name,
+                                                        user.position?.name,
                                                     ) ||
                                                     '—'
                                                 }
                                             />
+
+
+                                            {/* =================================================
+                                                REPORTING MANAGER
+                                            ================================================== */}
+
+                                            <div>
+
+                                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                                                    Reporting Manager / Head
+                                                </p>
+
+
+                                                {currentManager ? (
+
+                                                    <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+
+                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-xs font-bold text-white">
+                                                            {getManagerInitials(
+                                                                currentManager.name,
+                                                            )}
+                                                        </div>
+
+
+                                                        <div className="min-w-0 flex-1">
+
+                                                            <div className="flex flex-wrap items-center gap-2">
+
+                                                                <p className="truncate text-sm font-semibold text-slate-800">
+                                                                    {
+                                                                        currentManager.name
+                                                                    }
+                                                                </p>
+
+                                                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                    <CheckCircle2 className="h-3 w-3" />
+                                                                    Assigned
+                                                                </span>
+
+                                                            </div>
+
+
+                                                            <p className="mt-0.5 text-[11px] text-slate-500">
+                                                                {
+                                                                    currentManager
+                                                                        .position
+                                                                        ?.name ||
+                                                                    'Manager / Head'
+                                                                }
+                                                            </p>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                ) : (
+
+                                                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+
+                                                        <p className="text-xs font-semibold text-amber-800">
+                                                            No reporting manager assigned
+                                                        </p>
+
+                                                        <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                                                            This employee currently has no manager/head configured for leave approval routing.
+                                                        </p>
+
+                                                    </div>
+
+                                                )}
+
+                                            </div>
+
+
+                                            {/* =================================================
+                                                SYSTEM ROLE
+                                            ================================================== */}
 
                                             <div>
 
@@ -1453,9 +1555,8 @@ export default function ViewUser() {
                                                     System Role
                                                 </p>
 
-                                                {user.roles &&
-                                                user.roles.length >
-                                                    0 ? (
+
+                                                {user.roles?.length ? (
 
                                                     <div className="flex flex-wrap gap-2">
 
@@ -1490,6 +1591,11 @@ export default function ViewUser() {
 
                                             </div>
 
+
+                                            {/* =================================================
+                                                ACCOUNT STATUS
+                                            ================================================== */}
+
                                             <div>
 
                                                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
@@ -1510,8 +1616,9 @@ export default function ViewUser() {
 
                                 </div>
 
+
                                 {/* =================================================
-                                    SECURITY
+                                    ACCOUNT SECURITY
                                 ================================================== */}
 
                                 <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]">
@@ -1519,12 +1626,15 @@ export default function ViewUser() {
                                     <div className="border-b border-slate-100 px-5 py-4">
 
                                         <SectionHeading
-                                            icon={ShieldCheck}
+                                            icon={
+                                                ShieldCheck
+                                            }
                                             title="Account Security"
                                             description="Password and account activity information."
                                         />
 
                                     </div>
+
 
                                     <div className="grid gap-5 p-5 sm:grid-cols-3">
 
@@ -1548,6 +1658,7 @@ export default function ViewUser() {
 
                                         </div>
 
+
                                         <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-4">
 
                                             <div className="flex items-center gap-2 text-slate-400">
@@ -1567,6 +1678,7 @@ export default function ViewUser() {
                                             </p>
 
                                         </div>
+
 
                                         <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
 
@@ -1590,779 +1702,18 @@ export default function ViewUser() {
 
                                 </section>
 
+
                                 {/* =================================================
                                     AUDIT TRAIL
                                 ================================================== */}
 
-                                <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]">
-
-                                    <div className="border-b border-slate-100 px-5 py-4">
-
-                                        <SectionHeading
-                                            icon={Activity}
-                                            title="Audit Trail"
-                                            description="Administrative activity and account changes for this user."
-                                            action={
-                                                <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                                                    {
-                                                        auditLogs.length
-                                                    }{' '}
-                                                    {auditLogs.length ===
-                                                    1
-                                                        ? 'Event'
-                                                        : 'Events'}
-                                                </span>
-                                            }
-                                        />
-
-                                    </div>
-
-                                    <div className="p-5">
-
-                                        {auditLogs.length ===
-                                        0 ? (
-
-                                            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-5 py-10 text-center">
-
-                                                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-300 ring-1 ring-slate-200">
-                                                    <Activity className="h-4 w-4" />
-                                                </div>
-
-                                                <p className="mt-3 text-xs font-semibold text-slate-600">
-                                                    No audit activity recorded
-                                                </p>
-
-                                                <p className="mt-1 text-[11px] text-slate-400">
-                                                    Changes and administrative
-                                                    actions will appear here.
-                                                </p>
-
-                                            </div>
-
-                                        ) : (
-
-                                            <div className="relative">
-
-                                                {/* Timeline */}
-
-                                                <div className="absolute bottom-5 left-[15px] top-5 w-px bg-slate-200" />
-
-                                                <div className="space-y-5">
-
-                                                    {auditLogs.map(
-                                                        (
-                                                            audit,
-                                                        ) => (
-
-                                                            <div
-                                                                key={
-                                                                    audit.id
-                                                                }
-                                                                className="relative pl-9"
-                                                            >
-
-                                                                <div className="absolute left-0 top-4 flex h-8 w-8 items-center justify-center rounded-full border-4 border-white bg-[#173B67] shadow-sm ring-1 ring-slate-200">
-
-                                                                    <Activity className="h-3 w-3 text-white" />
-
-                                                                </div>
-
-                                                                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-
-                                                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-
-                                                                        <div className="min-w-0">
-
-                                                                            <div className="flex flex-wrap items-center gap-2">
-
-                                                                                <span
-                                                                                    className={`inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-semibold ${getAuditActionClass(
-                                                                                        audit.action,
-                                                                                    )}`}
-                                                                                >
-                                                                                    {
-                                                                                        getAuditActionLabel(
-                                                                                            audit.action,
-                                                                                        )
-                                                                                    }
-                                                                                </span>
-
-                                                                                <span className="text-[10px] text-slate-400">
-                                                                                    {formatDate(
-                                                                                        audit.created_at,
-                                                                                    )}
-                                                                                </span>
-
-                                                                            </div>
-
-                                                                            <p className="mt-2 text-xs font-medium leading-5 text-slate-700">
-                                                                                {
-                                                                                    audit.description
-                                                                                }
-                                                                            </p>
-
-                                                                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[10px] text-slate-400">
-
-                                                                                <span>
-                                                                                    Performed by:{' '}
-                                                                                    <strong className="font-semibold text-slate-600">
-                                                                                        {getAuditActorName(
-                                                                                            audit,
-                                                                                        )}
-                                                                                    </strong>
-                                                                                </span>
-
-                                                                                {audit.actor
-                                                                                    ?.username && (
-                                                                                    <span>
-                                                                                        Username:{' '}
-                                                                                        <strong className="font-medium text-slate-600">
-                                                                                            {
-                                                                                                audit
-                                                                                                    .actor
-                                                                                                    .username
-                                                                                            }
-                                                                                        </strong>
-                                                                                    </span>
-                                                                                )}
-
-                                                                                {audit.ip_address && (
-                                                                                    <span>
-                                                                                        IP:{' '}
-                                                                                        <strong className="font-medium text-slate-600">
-                                                                                            {
-                                                                                                audit.ip_address
-                                                                                            }
-                                                                                        </strong>
-                                                                                    </span>
-                                                                                )}
-
-                                                                            </div>
-
-                                                                        </div>
-
-                                                                        {audit.changes &&
-                                                                            Object.keys(
-                                                                                audit.changes,
-                                                                            ).length >
-                                                                                0 && (
-
-                                                                                <div className="w-full lg:max-w-md">
-
-                                                                                    <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400">
-                                                                                        Changes
-                                                                                    </p>
-
-                                                                                    <div className="space-y-1.5">
-
-                                                                                        {Object.entries(
-                                                                                            audit.changes,
-                                                                                        ).map(
-                                                                                            ([
-                                                                                                field,
-                                                                                                change,
-                                                                                            ]) => (
-
-                                                                                                <div
-                                                                                                    key={
-                                                                                                        field
-                                                                                                    }
-                                                                                                    className="rounded-md border border-slate-200 bg-white px-3 py-2"
-                                                                                                >
-
-                                                                                                    <p className="text-[10px] font-semibold text-slate-600">
-                                                                                                        {formatAuditField(
-                                                                                                            field,
-                                                                                                        )}
-                                                                                                    </p>
-
-                                                                                                    {change.changed ? (
-
-                                                                                                        <p className="mt-1 text-[10px] text-slate-500">
-                                                                                                            Value changed
-                                                                                                        </p>
-
-                                                                                                    ) : (
-
-                                                                                                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-
-                                                                                                            <div className="min-w-0">
-
-                                                                                                                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                                                                                                                    Before
-                                                                                                                </span>
-
-                                                                                                                <p className="mt-0.5 truncate text-[10px] text-slate-500">
-                                                                                                                    {formatAuditValue(
-                                                                                                                        change.old,
-                                                                                                                    )}
-                                                                                                                </p>
-
-                                                                                                            </div>
-
-                                                                                                            <div className="min-w-0">
-
-                                                                                                                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                                                                                                                    After
-                                                                                                                </span>
-
-                                                                                                                <p className="mt-0.5 truncate text-[10px] font-medium text-slate-700">
-                                                                                                                    {formatAuditValue(
-                                                                                                                        change.new,
-                                                                                                                    )}
-                                                                                                                </p>
-
-                                                                                                            </div>
-
-                                                                                                        </div>
-
-                                                                                                    )}
-
-                                                                                                </div>
-
-                                                                                            ),
-                                                                                        )}
-
-                                                                                    </div>
-
-                                                                                </div>
-
-                                                                            )}
-
-                                                                    </div>
-
-                                                                </div>
-
-                                                            </div>
-
-                                                        ),
-                                                    )}
-
-                                                </div>
-
-                                            </div>
-
-                                        )}
-
-                                    </div>
-
-                                </section>
+                                <UserAuditTrail
+                                    logs={
+                                        auditLogs
+                                    }
+                                />
 
                             </div>
-
-                        ) : (
-
-                            /* =================================================
-                               EDIT MODE
-                            ================================================== */
-
-                            <form
-                                onSubmit={
-                                    submitEdit
-                                }
-                                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_3px_16px_rgba(15,23,42,0.045)]"
-                            >
-
-                                {/* Edit Header */}
-
-                                <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
-
-                                    <div className="flex items-start justify-between gap-4">
-
-                                        <SectionHeading
-                                            icon={Edit3}
-                                            title="Edit User Account"
-                                            description="Update employee information, organizational placement, and system access."
-                                        />
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setEditing(
-                                                    false,
-                                                )
-                                            }
-                                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                                            aria-label="Close edit mode"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-
-                                    </div>
-
-                                </div>
-
-                                <div className="space-y-8 p-5 sm:p-6">
-
-                                    {/* Account */}
-
-                                    <div>
-
-                                        <div className="mb-4 border-b border-slate-100 pb-3">
-
-                                            <div className="flex items-center gap-2">
-
-                                                <CircleUserRound className="h-4 w-4 text-[#173B67]" />
-
-                                                <h3 className="text-xs font-bold text-slate-900">
-                                                    Account Information
-                                                </h3>
-
-                                            </div>
-
-                                            <p className="mt-1 text-[11px] text-slate-500">
-                                                Login credentials and employee identification.
-                                            </p>
-
-                                        </div>
-
-                                        <div className="grid gap-4 sm:grid-cols-2">
-
-                                            <InputField
-                                                label="Username"
-                                                required
-                                                value={
-                                                    form
-                                                        .data
-                                                        .username
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'username',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.username
-                                                }
-                                            />
-
-                                            <InputField
-                                                label="Employee Number"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .employee_number
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'employee_number',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.employee_number
-                                                }
-                                            />
-
-                                        </div>
-
-                                    </div>
-
-                                    {/* Personal */}
-
-                                    <div>
-
-                                        <div className="mb-4 border-b border-slate-100 pb-3">
-
-                                            <div className="flex items-center gap-2">
-
-                                                <UserRound className="h-4 w-4 text-[#173B67]" />
-
-                                                <h3 className="text-xs font-bold text-slate-900">
-                                                    Personal Information
-                                                </h3>
-
-                                            </div>
-
-                                        </div>
-
-                                        <div className="grid gap-4 sm:grid-cols-3">
-
-                                            <InputField
-                                                label="First Name"
-                                                required
-                                                value={
-                                                    form
-                                                        .data
-                                                        .first_name
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'first_name',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.first_name
-                                                }
-                                            />
-
-                                            <InputField
-                                                label="Middle Name"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .middle_name
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'middle_name',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.middle_name
-                                                }
-                                            />
-
-                                            <InputField
-                                                label="Last Name"
-                                                required
-                                                value={
-                                                    form
-                                                        .data
-                                                        .last_name
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'last_name',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.last_name
-                                                }
-                                            />
-
-                                            <div className="sm:col-span-3">
-
-                                                <InputField
-                                                    label="Display Name"
-                                                    required
-                                                    value={
-                                                        form
-                                                            .data
-                                                            .name
-                                                    }
-                                                    onChange={(
-                                                        value,
-                                                    ) =>
-                                                        form.setData(
-                                                            'name',
-                                                            value,
-                                                        )
-                                                    }
-                                                    error={
-                                                        errors.name
-                                                    }
-                                                />
-
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-                                    {/* Contact */}
-
-                                    <div>
-
-                                        <div className="mb-4 border-b border-slate-100 pb-3">
-
-                                            <div className="flex items-center gap-2">
-
-                                                <Mail className="h-4 w-4 text-[#173B67]" />
-
-                                                <h3 className="text-xs font-bold text-slate-900">
-                                                    Contact Information
-                                                </h3>
-
-                                            </div>
-
-                                        </div>
-
-                                        <div className="grid gap-4 sm:grid-cols-2">
-
-                                            <InputField
-                                                label="Email Address"
-                                                type="email"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .email
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'email',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.email
-                                                }
-                                            />
-
-                                            <InputField
-                                                label="Contact Number"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .contact_number
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'contact_number',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.contact_number
-                                                }
-                                            />
-
-                                        </div>
-
-                                    </div>
-
-                                    {/* Organization */}
-
-                                    <div>
-
-                                        <div className="mb-4 border-b border-slate-100 pb-3">
-
-                                            <div className="flex items-center gap-2">
-
-                                                <Building2 className="h-4 w-4 text-[#173B67]" />
-
-                                                <h3 className="text-xs font-bold text-slate-900">
-                                                    Organization & Access
-                                                </h3>
-
-                                            </div>
-
-                                            <p className="mt-1 text-[11px] text-slate-500">
-                                                Assign the employee to the appropriate organizational unit, position, and system role.
-                                            </p>
-
-                                        </div>
-
-                                        <div className="grid gap-4 sm:grid-cols-2">
-
-                                            <SelectField
-                                                label="Organizational Unit"
-                                                required
-                                                value={
-                                                    form
-                                                        .data
-                                                        .organizational_unit_id
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'organizational_unit_id',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.organizational_unit_id
-                                                }
-                                                options={[
-                                                    {
-                                                        value: '',
-                                                        label: 'Select organizational unit',
-                                                    },
-                                                    ...organizationalUnits.map(
-                                                        (
-                                                            unit,
-                                                        ) => ({
-                                                            value: String(
-                                                                unit.id,
-                                                            ),
-                                                            label: `${unit.code} — ${unit.name}`,
-                                                        }),
-                                                    ),
-                                                ]}
-                                            />
-
-                                            <SelectField
-                                                label="Position"
-                                                required
-                                                value={
-                                                    form
-                                                        .data
-                                                        .position_id
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'position_id',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.position_id
-                                                }
-                                                options={[
-                                                    {
-                                                        value: '',
-                                                        label: 'Select position',
-                                                    },
-                                                    ...positions.map(
-                                                        (
-                                                            position,
-                                                        ) => ({
-                                                            value: String(
-                                                                position.id,
-                                                            ),
-                                                            label: position.name,
-                                                        }),
-                                                    ),
-                                                ]}
-                                            />
-
-                                            <SelectField
-                                                label="System Role"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .role
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'role',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.role
-                                                }
-                                                options={[
-                                                    {
-                                                        value: '',
-                                                        label: 'No role',
-                                                    },
-                                                    ...roles.map(
-                                                        (
-                                                            role,
-                                                        ) => ({
-                                                            value: role.name,
-                                                            label: role.name,
-                                                        }),
-                                                    ),
-                                                ]}
-                                            />
-
-                                            <SelectField
-                                                label="Account Status"
-                                                required
-                                                value={
-                                                    form
-                                                        .data
-                                                        .account_status
-                                                }
-                                                onChange={(
-                                                    value,
-                                                ) =>
-                                                    form.setData(
-                                                        'account_status',
-                                                        value,
-                                                    )
-                                                }
-                                                error={
-                                                    errors.account_status
-                                                }
-                                                options={[
-                                                    {
-                                                        value: 'active',
-                                                        label: 'Active',
-                                                    },
-                                                    {
-                                                        value: 'inactive',
-                                                        label: 'Inactive',
-                                                    },
-                                                    {
-                                                        value: 'locked',
-                                                        label: 'Locked',
-                                                    },
-                                                    {
-                                                        value: 'suspended',
-                                                        label: 'Suspended',
-                                                    },
-                                                ]}
-                                            />
-
-                                        </div>
-
-                                    </div>
-
-                                </div>
-
-                                {/* Edit Footer */}
-
-                                <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
-
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setEditing(
-                                                false,
-                                            )
-                                        }
-                                        className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
-                                    >
-                                        Cancel
-                                    </button>
-
-                                    <button
-                                        type="submit"
-                                        disabled={
-                                            form.processing
-                                        }
-                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#123052] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-
-                                        {form.processing ? (
-
-                                            <>
-                                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-
-                                                Saving...
-                                            </>
-
-                                        ) : (
-
-                                            <>
-                                                <Save className="h-3.5 w-3.5" />
-
-                                                Save Changes
-                                            </>
-
-                                        )}
-
-                                    </button>
-
-                                </div>
-
-                            </form>
 
                         )}
 
@@ -2372,291 +1723,30 @@ export default function ViewUser() {
 
             </div>
 
-            {/* =============================================================
+
+            {/* ================================================================
                 RESET PASSWORD MODAL
-            ============================================================= */}
-
-            {showResetModal && (
-
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]">
-
-                    <div className="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.20)]">
-
-                        {/* Modal Header */}
-
-                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
-
-                            <div className="flex items-start gap-3">
-
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 ring-1 ring-amber-100">
-                                    <KeyRound className="h-4 w-4" />
-                                </div>
-
-                                <div>
-
-                                    <h2 className="text-sm font-semibold text-slate-900">
-                                        Reset Password
-                                    </h2>
-
-                                    <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                                        Reset the password for{' '}
-                                        <span className="font-semibold text-slate-700">
-                                            {
-                                                displayName
-                                            }
-                                        </span>
-                                        .
-                                    </p>
-
-                                </div>
-
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={
-                                    closeResetModal
-                                }
-                                disabled={
-                                    form.processing
-                                }
-                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-
-                        </div>
-
-                        {/* Modal Body */}
-
-                        <div className="p-5">
-
-                            {!temporaryPassword ? (
-
-                                <div className="space-y-4">
-
-                                    <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4">
-
-                                        <div className="flex gap-3">
-
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-amber-700 ring-1 ring-amber-100">
-                                                <ShieldCheck className="h-4 w-4" />
-                                            </div>
-
-                                            <div>
-
-                                                <p className="text-xs font-semibold text-amber-900">
-                                                    Temporary password
-                                                </p>
-
-                                                <p className="mt-1 text-[11px] leading-5 text-amber-800/80">
-                                                    A secure temporary password will be generated and assigned to this account.
-                                                </p>
-
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-                                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-
-                                        <p className="text-[11px] leading-5 text-slate-500">
-                                            The employee should change the temporary password after signing in.
-                                        </p>
-
-                                    </div>
-
-                                </div>
-
-                            ) : (
-
-                                <div className="space-y-4">
-
-                                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
-
-                                        <div className="flex gap-3">
-
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-emerald-700 ring-1 ring-emerald-100">
-                                                <CheckCircle2 className="h-4 w-4" />
-                                            </div>
-
-                                            <div>
-
-                                                <p className="text-xs font-semibold text-emerald-900">
-                                                    Password reset successfully
-                                                </p>
-
-                                                <p className="mt-1 text-[11px] leading-5 text-emerald-800/80">
-                                                    Provide the temporary password to the employee through your approved secure process.
-                                                </p>
-
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-                                    <div>
-
-                                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                                            Temporary Password
-                                        </label>
-
-                                        <div className="flex gap-2">
-
-                                            <div className="flex min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
-
-                                                <input
-                                                    type={
-                                                        showTemporaryPassword
-                                                            ? 'text'
-                                                            : 'password'
-                                                    }
-                                                    readOnly
-                                                    value={
-                                                        temporaryPassword
-                                                    }
-                                                    className="min-w-0 flex-1 bg-transparent py-2.5 font-mono text-sm font-semibold tracking-wider text-slate-800 outline-none"
-                                                />
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setShowTemporaryPassword(
-                                                            (
-                                                                value,
-                                                            ) =>
-                                                                !value,
-                                                        )
-                                                    }
-                                                    className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700"
-                                                >
-                                                    {showTemporaryPassword ? (
-                                                        <EyeOff className="h-4 w-4" />
-                                                    ) : (
-                                                        <Eye className="h-4 w-4" />
-                                                    )}
-                                                </button>
-
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={
-                                                    copyTemporaryPassword
-                                                }
-                                                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                                            >
-
-                                                {copiedPassword ? (
-
-                                                    <>
-                                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
-
-                                                        Copied
-                                                    </>
-
-                                                ) : (
-
-                                                    <>
-                                                        <Copy className="h-3.5 w-3.5" />
-
-                                                        Copy
-                                                    </>
-
-                                                )}
-
-                                            </button>
-
-                                        </div>
-
-                                        <p className="mt-2 text-[10px] leading-4 text-slate-400">
-                                            This password is displayed only for this reset operation. Store or communicate it according to your organization's security procedures.
-                                        </p>
-
-                                    </div>
-
-                                </div>
-
-                            )}
-
-                        </div>
-
-                        {/* Modal Footer */}
-
-                        <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-4">
-
-                            {!temporaryPassword ? (
-
-                                <>
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            closeResetModal
-                                        }
-                                        disabled={
-                                            form.processing
-                                        }
-                                        className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-                                    >
-                                        Cancel
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            resetPassword
-                                        }
-                                        disabled={
-                                            form.processing
-                                        }
-                                        className="inline-flex h-9 items-center rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#123052] disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-
-                                        {form.processing ? (
-
-                                            <>
-                                                <span className="mr-2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-
-                                                Resetting...
-                                            </>
-
-                                        ) : (
-
-                                            <>
-                                                <KeyRound className="mr-2 h-3.5 w-3.5" />
-
-                                                Reset Password
-                                            </>
-
-                                        )}
-
-                                    </button>
-                                </>
-
-                            ) : (
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        closeResetModal
-                                    }
-                                    className="h-9 rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#123052]"
-                                >
-                                    Done
-                                </button>
-
-                            )}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            )}
-
+            ================================================================= */}
+
+            <UserResetPasswordModal
+                open={
+                    showResetModal
+                }
+                userId={
+                    user.id
+                }
+                displayName={
+                    displayName
+                }
+                form={
+                    form
+                }
+                onClose={() =>
+                    setShowResetModal(
+                        false,
+                    )
+                }
+            />
         </>
     );
 }

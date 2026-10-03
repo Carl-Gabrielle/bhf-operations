@@ -28,6 +28,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int|null $organizational_unit_id
  * @property int|null $position_id
  * @property int|null $reports_to_user_id
+ * @property bool $can_be_reporting_manager
  * @property string $account_status
  * @property Carbon|null $last_login_at
  * @property Carbon|null $password_changed_at
@@ -35,7 +36,6 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
- * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -51,6 +51,10 @@ use Spatie\Permission\Traits\HasRoles;
     'organizational_unit_id',
     'position_id',
     'reports_to_user_id',
+
+    // Reporting structure
+    'can_be_reporting_manager',
+
     'account_status',
     'password',
     'password_changed_at',
@@ -67,6 +71,12 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasRoles, HasFactory, Notifiable, TwoFactorAuthenticatable;
 
+    /*
+    |--------------------------------------------------------------------------
+    | Attribute Casting
+    |--------------------------------------------------------------------------
+    */
+
     protected function casts(): array
     {
         return [
@@ -76,6 +86,9 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
             'must_change_password' => 'boolean',
+
+            // Reporting structure
+            'can_be_reporting_manager' => 'boolean',
         ];
     }
 
@@ -85,14 +98,24 @@ class User extends Authenticatable
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Organizational unit / department.
+     */
     public function organizationalUnit(): BelongsTo
     {
-        return $this->belongsTo(OrganizationalUnit::class);
+        return $this->belongsTo(
+            OrganizationalUnit::class
+        );
     }
 
+    /**
+     * Position / job title.
+     */
     public function position(): BelongsTo
     {
-        return $this->belongsTo(Position::class);
+        return $this->belongsTo(
+            Position::class
+        );
     }
 
     /*
@@ -102,7 +125,8 @@ class User extends Authenticatable
     */
 
     /**
-     * The manager/head this employee reports to.
+     * The manager, supervisor, department head,
+     * or approving head this employee reports to.
      */
     public function reportsTo(): BelongsTo
     {
@@ -120,6 +144,59 @@ class User extends Authenticatable
         return $this->hasMany(
             User::class,
             'reports_to_user_id'
+        );
+    }
+
+    /**
+     * Determine whether this user can be assigned
+     * as a reporting manager / head.
+     *
+     * This is intentionally independent of the user's
+     * Spatie role. A user may have the "Employee" role
+     * while holding a position such as Department Head.
+     */
+    public function canBeReportingManager(): bool
+    {
+        return $this->can_be_reporting_manager
+            && $this->account_status === 'active';
+    }
+
+    /**
+     * Scope users who can be assigned as
+     * reporting managers / heads.
+     */
+    public function scopeReportingManagers($query)
+    {
+        return $query
+            ->where('account_status', 'active')
+            ->where('can_be_reporting_manager', true);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Leave Management
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Leave applications submitted by this employee.
+     */
+    public function leaveApplications(): HasMany
+    {
+        return $this->hasMany(
+            LeaveApplication::class,
+            'employee_id'
+        );
+    }
+
+    /**
+     * Leave approvals assigned to this user.
+     */
+    public function leaveApprovals(): HasMany
+    {
+        return $this->hasMany(
+            LeaveApproval::class,
+            'approver_id'
         );
     }
 

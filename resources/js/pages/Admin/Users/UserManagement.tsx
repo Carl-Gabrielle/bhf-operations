@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 
 import {
     type ColumnDef,
@@ -14,9 +14,11 @@ import {
     ArrowDown,
     ArrowUp,
     ArrowUpDown,
+    AlertCircle,
     Building2,
     ChevronLeft,
     ChevronRight,
+    CheckCircle2,
     Eye,
     Filter,
     Loader2,
@@ -276,6 +278,58 @@ export default function UserManagement({
 
     const [isLoading, setIsLoading] =
         useState(false);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Flash Notifications
+    |--------------------------------------------------------------------------
+    */
+
+    const { props } = usePage<{
+        flash?: {
+            success?: string | null;
+            error?: string | null;
+        };
+    }>();
+
+    const successMessage =
+        props.flash?.success ?? null;
+
+    const errorMessage =
+        props.flash?.error ?? null;
+
+    const [flashVisible, setFlashVisible] =
+        useState(
+            Boolean(
+                successMessage ||
+                errorMessage,
+            ),
+        );
+
+    useEffect(() => {
+        if (
+            !successMessage &&
+            !errorMessage
+        ) {
+            setFlashVisible(false);
+            return;
+        }
+
+        setFlashVisible(true);
+
+        const timeout =
+            window.setTimeout(() => {
+                setFlashVisible(false);
+            }, 4000);
+
+        return () =>
+            window.clearTimeout(
+                timeout,
+            );
+    }, [
+        successMessage,
+        errorMessage,
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -1068,6 +1122,52 @@ export default function UserManagement({
 
     return (
         <div className="min-h-full bg-slate-50 text-slate-900">
+            {/* =========================================================
+                FLASH NOTIFICATION
+            ========================================================== */}
+
+            {flashVisible && (successMessage || errorMessage) && (
+                <div
+                    className="fixed right-4 top-4 z-[100] w-[calc(100%-2rem)] max-w-sm sm:right-6 sm:top-6"
+                    role={successMessage ? 'status' : 'alert'}
+                    aria-live="polite"
+                >
+                    {successMessage ? (
+                        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg shadow-slate-900/10">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                                <CheckCircle2 className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-semibold">Success</p>
+                                <p className="mt-0.5 text-xs text-emerald-700">
+                                    {successMessage}
+                                </p>
+                            </div>
+                            </div>
+                    ) : (
+                        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-lg shadow-slate-900/10">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                                <AlertCircle className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-semibold">Unable to complete action</p>
+                                <p className="mt-0.5 text-xs text-red-700">
+                                    {errorMessage}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setFlashVisible(false)}
+                                aria-label="Dismiss notification"
+                                className="ml-auto -mr-1 -mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-red-600/70 transition hover:bg-red-100 hover:text-red-700"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 <div className="space-y-6">
 

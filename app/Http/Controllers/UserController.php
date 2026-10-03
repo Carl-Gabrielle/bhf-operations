@@ -12,249 +12,166 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    /**
-     * Display all users.
-     */
-    public function index(Request $request): Response
-{
-    $allowedSorts = [
-        'name',
-        'username',
-        'employee_number',
-        'account_status',
-        'created_at',
-    ];
-
-    $sort = $request->string('sort')->toString();
-
-    $sort = in_array($sort, $allowedSorts, true)
-        ? $sort
-        : 'created_at';
-
-    $direction = $request->string('direction')->toString();
-
-    $direction = in_array($direction, ['asc', 'desc'], true)
-        ? $direction
-        : 'desc';
-
-    $users = User::query()
-        ->with([
-            'organizationalUnit:id,code,name',
-            'position:id,name',
-            'roles:id,name',
-        ])
-
-        /*
-        |--------------------------------------------------------------------------
-        | Search
-        |--------------------------------------------------------------------------
-        */
-
-        ->when(
-            $request->filled('search'),
-            function ($query) use ($request) {
-                $search = $request
-                    ->string('search')
-                    ->trim()
-                    ->toString();
-
-                $query->where(function ($query) use ($search) {
-                    $query
-                        ->where(
-                            'username',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'employee_number',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'name',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhere(
-                            'email',
-                            'like',
-                            "%{$search}%"
-                        );
-                });
-            }
-        )
-
-        /*
-        |--------------------------------------------------------------------------
-        | Status
-        |--------------------------------------------------------------------------
-        */
-
-        ->when(
-            $request->filled('status'),
-            function ($query) use ($request) {
-                $status = $request
-                    ->string('status')
-                    ->toString();
-
-                if ($status !== 'all') {
-                    $query->where(
-                        'account_status',
-                        $status
-                    );
-                }
-            }
-        )
-
-        /*
-        |--------------------------------------------------------------------------
-        | Role
-        |--------------------------------------------------------------------------
-        */
-
-        ->when(
-            $request->filled('role'),
-            function ($query) use ($request) {
-                $role = $request
-                    ->string('role')
-                    ->toString();
-
-                if ($role !== 'all') {
-                    $query->whereHas(
-                        'roles',
-                        function ($query) use ($role) {
-                            $query->where(
-                                'name',
-                                $role
-                            );
-                        }
-                    );
-                }
-            }
-        )
-
-        /*
-        |--------------------------------------------------------------------------
-        | Organization
-        |--------------------------------------------------------------------------
-        */
-
-        ->when(
-            $request->filled('organization'),
-            function ($query) use ($request) {
-                $organization = $request
-                    ->integer('organization');
-
-                if ($organization > 0) {
-                    $query->where(
-                        'organizational_unit_id',
-                        $organization
-                    );
-                }
-            }
-        )
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sorting
-        |--------------------------------------------------------------------------
-        */
-
-        ->orderBy(
-            $sort,
-            $direction
-        )
-
-        /*
-        |--------------------------------------------------------------------------
-        | Stable secondary sort
-        |--------------------------------------------------------------------------
-        */
-
-        ->orderByDesc('id')
-
-        /*
-        |--------------------------------------------------------------------------
-        | Pagination
-        |--------------------------------------------------------------------------
-        */
-
-        ->paginate(10)
-
-        ->withQueryString();
-
     /*
     |--------------------------------------------------------------------------
-    | Organizational Units
+    | USER LIST
     |--------------------------------------------------------------------------
     */
 
-    $organizationalUnits =
-        OrganizationalUnit::query()
-            ->orderBy('code')
-            ->get([
-                'id',
-                'code',
-                'name',
-            ]);
-
-    return Inertia::render(
-        'Admin/Users/Index',
-        [
-            'users' =>
-                UserResource::collection(
-                    $users
-                ),
-
-            'organizationalUnits' =>
-                $organizationalUnits,
-
-            'filters' => [
-                'search' =>
-                    $request
-                        ->string('search')
-                        ->toString(),
-
-                'status' =>
-                    $request
-                        ->string('status')
-                        ->toString(),
-
-                'role' =>
-                    $request
-                        ->string('role')
-                        ->toString(),
-
-                'organization' =>
-                    $request
-                        ->string('organization')
-                        ->toString(),
-
-                'sort' =>
-                    $sort,
-
-                'direction' =>
-                    $direction,
-            ],
-        ]
-    );
-}
-    /**
-     * Display a specific user.
-     */
-    public function show(User $user): Response
+    public function index(Request $request): Response
     {
-        $user->load([
-            'organizationalUnit:id,code,name',
-            'position:id,name',
-            'roles:id,name',
-        ]);
+        $allowedSorts = [
+            'name',
+            'username',
+            'employee_number',
+            'account_status',
+            'created_at',
+        ];
+
+        $sort = $request->string('sort')->toString();
+
+        $sort = in_array($sort, $allowedSorts, true)
+            ? $sort
+            : 'created_at';
+
+        $direction = $request->string('direction')->toString();
+
+        $direction = in_array($direction, ['asc', 'desc'], true)
+            ? $direction
+            : 'desc';
+
+        $users = User::query()
+            ->with([
+                'organizationalUnit:id,code,name',
+                'position:id,name',
+                'roles:id,name',
+
+                'reportsTo:id,name,employee_number,position_id,organizational_unit_id,can_be_reporting_manager',
+                'reportsTo.position:id,name',
+                'reportsTo.organizationalUnit:id,code,name',
+            ])
+
+            /*
+            |--------------------------------------------------------------------------
+            | Search
+            |--------------------------------------------------------------------------
+            */
+
+            ->when(
+                $request->filled('search'),
+                function ($query) use ($request) {
+                    $search = $request
+                        ->string('search')
+                        ->trim()
+                        ->toString();
+
+                    $query->where(function ($query) use ($search) {
+                        $query
+                            ->where(
+                                'username',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'employee_number',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'name',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'email',
+                                'like',
+                                "%{$search}%"
+                            );
+                    });
+                }
+            )
+
+            /*
+            |--------------------------------------------------------------------------
+            | Status
+            |--------------------------------------------------------------------------
+            */
+
+            ->when(
+                $request->filled('status'),
+                function ($query) use ($request) {
+                    $status = $request
+                        ->string('status')
+                        ->toString();
+
+                    if ($status !== 'all') {
+                        $query->where(
+                            'account_status',
+                            $status
+                        );
+                    }
+                }
+            )
+
+            /*
+            |--------------------------------------------------------------------------
+            | Role
+            |--------------------------------------------------------------------------
+            */
+
+            ->when(
+                $request->filled('role'),
+                function ($query) use ($request) {
+                    $role = $request
+                        ->string('role')
+                        ->toString();
+
+                    if ($role !== 'all') {
+                        $query->whereHas(
+                            'roles',
+                            function ($query) use ($role) {
+                                $query->where(
+                                    'name',
+                                    $role
+                                );
+                            }
+                        );
+                    }
+                }
+            )
+
+            /*
+            |--------------------------------------------------------------------------
+            | Organization
+            |--------------------------------------------------------------------------
+            */
+
+            ->when(
+                $request->filled('organization'),
+                function ($query) use ($request) {
+                    $organization = $request
+                        ->integer('organization');
+
+                    if ($organization > 0) {
+                        $query->where(
+                            'organizational_unit_id',
+                            $organization
+                        );
+                    }
+                }
+            )
+
+            ->orderBy($sort, $direction)
+            ->orderByDesc('id')
+            ->paginate(10)
+            ->withQueryString();
 
         $organizationalUnits = OrganizationalUnit::query()
             ->orderBy('code')
@@ -264,12 +181,107 @@ class UserController extends Controller
                 'name',
             ]);
 
+        return Inertia::render(
+            'Admin/Users/Index',
+            [
+                'users' =>
+                    UserResource::collection($users),
+
+                'organizationalUnits' =>
+                    $organizationalUnits,
+
+                'filters' => [
+                    'search' =>
+                        $request
+                            ->string('search')
+                            ->toString(),
+
+                    'status' =>
+                        $request
+                            ->string('status')
+                            ->toString(),
+
+                    'role' =>
+                        $request
+                            ->string('role')
+                            ->toString(),
+
+                    'organization' =>
+                        $request
+                            ->string('organization')
+                            ->toString(),
+
+                    'sort' => $sort,
+
+                    'direction' => $direction,
+                ],
+                'flash' => [
+            'success' => $request->session()->get('success'),
+            'error' => $request->session()->get('error'),
+        ],
+            ]
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SHOW USER
+    |--------------------------------------------------------------------------
+    */
+
+    public function show(User $user): Response
+    {
+        $user->load([
+            'organizationalUnit:id,code,name',
+            'position:id,name',
+            'roles:id,name',
+
+            /*
+            |--------------------------------------------------------------------------
+            | Reporting Structure
+            |--------------------------------------------------------------------------
+            */
+
+            'reportsTo:id,name,employee_number,position_id,organizational_unit_id,can_be_reporting_manager',
+            'reportsTo.position:id,name',
+            'reportsTo.organizationalUnit:id,code,name',
+
+            'directReports:id,name,employee_number,position_id,reports_to_user_id,can_be_reporting_manager',
+            'directReports.position:id,name',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Organizational Units
+        |--------------------------------------------------------------------------
+        */
+
+        $organizationalUnits = OrganizationalUnit::query()
+            ->orderBy('code')
+            ->get([
+                'id',
+                'code',
+                'name',
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Positions
+        |--------------------------------------------------------------------------
+        */
+
         $positions = Position::query()
             ->orderBy('name')
             ->get([
                 'id',
                 'name',
             ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Roles
+        |--------------------------------------------------------------------------
+        */
 
         $roles = Role::query()
             ->orderBy('name')
@@ -279,36 +291,98 @@ class UserController extends Controller
             ]);
 
         /*
-         * Load the audit history for this specific account.
-         *
-         * actor = the administrator/user who performed the action.
-         * target_user_id = the account being viewed.
-         */
+        |--------------------------------------------------------------------------
+        | Available Reporting Managers / Heads
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        |
+        | We no longer determine eligibility by checking whether the
+        | position name contains "manager", "head", "chief", etc.
+        |
+        | Admin explicitly controls this through:
+        |
+        | can_be_reporting_manager = true
+        |
+        */
+
+        $managers = User::query()
+            ->reportingManagers()
+            ->whereKeyNot($user->id)
+            ->with([
+                'position:id,name',
+                'organizationalUnit:id,code,name',
+                'roles:id,name',
+            ])
+            ->orderBy('name')
+            ->get([
+                'id',
+                'name',
+                'first_name',
+                'middle_name',
+                'last_name',
+                'username',
+                'employee_number',
+                'position_id',
+                'organizational_unit_id',
+                'account_status',
+                'can_be_reporting_manager',
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit History
+        |--------------------------------------------------------------------------
+        */
+
         $auditLogs = AuditLog::query()
             ->with([
                 'actor:id,name,username',
             ])
-            ->where('target_user_id', $user->id)
+            ->where(
+                'target_user_id',
+                $user->id
+            )
             ->latest()
             ->limit(100)
             ->get();
 
-        return Inertia::render('Admin/Users/View', [
-            'user' => (new UserResource($user))->resolve(),
+        /*
+        |--------------------------------------------------------------------------
+        | Response
+        |--------------------------------------------------------------------------
+        */
 
-            'organizationalUnits' => $organizationalUnits,
+        return Inertia::render(
+            'Admin/Users/View',
+            [
+                'user' =>
+                    (new UserResource($user))->resolve(),
 
-            'positions' => $positions,
+                'organizationalUnits' =>
+                    $organizationalUnits,
 
-            'roles' => $roles,
+                'positions' =>
+                    $positions,
 
-            'auditLogs' => $auditLogs,
-        ]);
+                'roles' =>
+                    $roles,
+
+                'managers' =>
+                    $managers,
+
+                'auditLogs' =>
+                    $auditLogs,
+            ]
+        );
     }
 
-    /**
-     * Display the user creation form.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE USER
+    |--------------------------------------------------------------------------
+    */
+
     public function create(): Response
     {
         $organizationalUnits = OrganizationalUnit::query()
@@ -333,19 +407,67 @@ class UserController extends Controller
                 'name',
             ]);
 
-        return Inertia::render('Admin/Users/Create', [
-            'organizationalUnits' => $organizationalUnits,
-            'positions' => $positions,
-            'roles' => $roles,
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Available Reporting Managers / Heads
+        |--------------------------------------------------------------------------
+        */
+
+        $managers = User::query()
+            ->reportingManagers()
+            ->with([
+                'position:id,name',
+                'organizationalUnit:id,code,name',
+                'roles:id,name',
+            ])
+            ->orderBy('name')
+            ->get([
+                'id',
+                'name',
+                'first_name',
+                'middle_name',
+                'last_name',
+                'username',
+                'employee_number',
+                'position_id',
+                'organizational_unit_id',
+                'account_status',
+                'can_be_reporting_manager',
+            ]);
+
+        return Inertia::render(
+            'Admin/Users/Create',
+            [
+                'organizationalUnits' =>
+                    $organizationalUnits,
+
+                'positions' =>
+                    $positions,
+
+                'roles' =>
+                    $roles,
+
+                'managers' =>
+                    $managers,
+            ]
+        );
     }
 
-    /**
-     * Store a new user.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | STORE USER
+    |--------------------------------------------------------------------------
+    */
+
     public function store(Request $request)
     {
         $validated = $request->validate([
+            /*
+            |--------------------------------------------------------------------------
+            | Account
+            |--------------------------------------------------------------------------
+            */
+
             'username' => [
                 'required',
                 'string',
@@ -359,6 +481,12 @@ class UserController extends Controller
                 'max:255',
                 'unique:users,employee_number',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Personal Information
+            |--------------------------------------------------------------------------
+            */
 
             'name' => [
                 'required',
@@ -397,6 +525,12 @@ class UserController extends Controller
                 'unique:users,email',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Organization
+            |--------------------------------------------------------------------------
+            */
+
             'organizational_unit_id' => [
                 'nullable',
                 'integer',
@@ -409,17 +543,52 @@ class UserController extends Controller
                 'exists:positions,id',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Reporting Structure
+            |--------------------------------------------------------------------------
+            */
+
+            'reports_to_user_id' => [
+                'nullable',
+                'integer',
+                'exists:users,id',
+            ],
+
+            'can_be_reporting_manager' => [
+                'sometimes',
+                'boolean',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Account Status
+            |--------------------------------------------------------------------------
+            */
+
             'account_status' => [
                 'required',
                 'string',
                 'max:20',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Role
+            |--------------------------------------------------------------------------
+            */
+
             'role' => [
                 'nullable',
                 'string',
                 'exists:roles,name',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Password
+            |--------------------------------------------------------------------------
+            */
 
             'password' => [
                 'required',
@@ -429,63 +598,145 @@ class UserController extends Controller
             ],
         ]);
 
-        $user = DB::transaction(function () use ($validated) {
-            $user = User::create([
-                'username' => $validated['username'],
+        /*
+        |--------------------------------------------------------------------------
+        | Normalize Reporting Manager Flag
+        |--------------------------------------------------------------------------
+        */
 
-                'employee_number' =>
-                    $validated['employee_number'] ?? null,
-
-                'name' => $validated['name'],
-
-                'first_name' =>
-                    $validated['first_name'] ?? null,
-
-                'middle_name' =>
-                    $validated['middle_name'] ?? null,
-
-                'last_name' =>
-                    $validated['last_name'] ?? null,
-
-                'contact_number' =>
-                    $validated['contact_number'] ?? null,
-
-                'email' =>
-                    $validated['email'] ?? null,
-
-                'organizational_unit_id' =>
-                    $validated['organizational_unit_id'] ?? null,
-
-                'position_id' =>
-                    $validated['position_id'] ?? null,
-
-                'account_status' =>
-                    $validated['account_status'],
-
-                /*
-                 * Never store a plain-text password.
-                 */
-                'password' => Hash::make(
-                    $validated['password']
-                ),
-
-                'password_changed_at' => now(),
-
-                'must_change_password' => false,
-            ]);
-
-            if (!empty($validated['role'])) {
-                $user->assignRole($validated['role']);
-            }
-
-            return $user;
-        });
+        $canBeReportingManager =
+            $request->boolean(
+                'can_be_reporting_manager'
+            );
 
         /*
-         * Audit who created the account.
-         *
-         * The password itself is intentionally excluded.
-         */
+        |--------------------------------------------------------------------------
+        | Validate Reporting Manager
+        |--------------------------------------------------------------------------
+        |
+        | The selected manager must:
+        |
+        | 1. Exist
+        | 2. Be active
+        | 3. Explicitly be marked as a reporting manager/head
+        |
+        */
+
+        if (!empty($validated['reports_to_user_id'])) {
+            $manager = User::query()
+                ->reportingManagers()
+                ->whereKey(
+                    $validated['reports_to_user_id']
+                )
+                ->first();
+
+            if (!$manager) {
+                return back()
+                    ->withErrors([
+                        'reports_to_user_id' =>
+                            'The selected user is not authorized to be a reporting manager or head.',
+                    ])
+                    ->withInput();
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create User
+        |--------------------------------------------------------------------------
+        */
+
+        $user = DB::transaction(
+            function () use (
+                $validated,
+                $canBeReportingManager
+            ) {
+                $user = User::create([
+                    'username' =>
+                        $validated['username'],
+
+                    'employee_number' =>
+                        $validated['employee_number'] ?? null,
+
+                    'name' =>
+                        $validated['name'],
+
+                    'first_name' =>
+                        $validated['first_name'] ?? null,
+
+                    'middle_name' =>
+                        $validated['middle_name'] ?? null,
+
+                    'last_name' =>
+                        $validated['last_name'] ?? null,
+
+                    'contact_number' =>
+                        $validated['contact_number'] ?? null,
+
+                    'email' =>
+                        $validated['email'] ?? null,
+
+                    'organizational_unit_id' =>
+                        $validated['organizational_unit_id'] ?? null,
+
+                    'position_id' =>
+                        $validated['position_id'] ?? null,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Reporting Structure
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'reports_to_user_id' =>
+                        $validated['reports_to_user_id'] ?? null,
+
+                    'can_be_reporting_manager' =>
+                        $canBeReportingManager,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Account
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'account_status' =>
+                        $validated['account_status'],
+
+                    'password' =>
+                        Hash::make(
+                            $validated['password']
+                        ),
+
+                    'password_changed_at' =>
+                        now(),
+
+                    'must_change_password' =>
+                        false,
+                ]);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Assign Role
+                |--------------------------------------------------------------------------
+                */
+
+                if (!empty($validated['role'])) {
+                    $user->assignRole(
+                        $validated['role']
+                    );
+                }
+
+                return $user;
+            }
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Audit
+        |--------------------------------------------------------------------------
+        */
+
         AuditLogger::log(
             action: 'user_created',
             targetUser: $user,
@@ -517,6 +768,26 @@ class UserController extends Controller
                     'new' => $user->email,
                 ],
 
+                'organizational_unit_id' => [
+                    'old' => null,
+                    'new' => $user->organizational_unit_id,
+                ],
+
+                'position_id' => [
+                    'old' => null,
+                    'new' => $user->position_id,
+                ],
+
+                'reports_to_user_id' => [
+                    'old' => null,
+                    'new' => $user->reports_to_user_id,
+                ],
+
+                'can_be_reporting_manager' => [
+                    'old' => null,
+                    'new' => $user->can_be_reporting_manager,
+                ],
+
                 'account_status' => [
                     'old' => null,
                     'new' => $user->account_status,
@@ -533,15 +804,16 @@ class UserController extends Controller
             ->route('admin.users.index')
             ->with(
                 'success',
-                'User created successfully.',
+                'User created successfully.'
             );
     }
 
-    /**
-     * Reset a user's password.
-     *
-     * This method can be used by a dedicated reset-password route.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | RESET PASSWORD
+    |--------------------------------------------------------------------------
+    */
+
     public function resetPassword(User $user)
     {
         $temporaryPassword = Str::password(
@@ -552,27 +824,18 @@ class UserController extends Controller
         );
 
         $user->update([
-            /*
-             * Always hash the temporary password.
-             */
-            'password' => Hash::make(
-                $temporaryPassword
-            ),
+            'password' =>
+                Hash::make(
+                    $temporaryPassword
+                ),
 
-            'password_changed_at' => now(),
+            'password_changed_at' =>
+                now(),
 
-            /*
-             * Force the employee to change it
-             * after signing in.
-             */
-            'must_change_password' => true,
+            'must_change_password' =>
+                true,
         ]);
 
-        /*
-         * Audit the reset.
-         *
-         * NEVER store the actual temporary password.
-         */
         AuditLogger::log(
             action: 'password_reset',
             targetUser: $user,
@@ -595,12 +858,6 @@ class UserController extends Controller
             ],
         );
 
-        /*
-         * The temporary password is returned only
-         * to the current reset operation.
-         *
-         * It is NOT stored in the audit log.
-         */
         return back()->with([
             'success' =>
                 'Password reset successfully.',
@@ -610,17 +867,29 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Update a user.
-     *
-     * This method also supports the reset-password flow
-     * used by the current View.tsx.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE USER
+    |--------------------------------------------------------------------------
+    */
+
     public function update(
         Request $request,
-        User $user,
+        User $user
     ) {
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Request
+        |--------------------------------------------------------------------------
+        */
+
         $validated = $request->validate([
+            /*
+            |--------------------------------------------------------------------------
+            | Account
+            |--------------------------------------------------------------------------
+            */
+
             'username' => [
                 'required',
                 'string',
@@ -634,6 +903,12 @@ class UserController extends Controller
                 'max:255',
                 'unique:users,employee_number,' . $user->id,
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Personal Information
+            |--------------------------------------------------------------------------
+            */
 
             'name' => [
                 'required',
@@ -672,6 +947,12 @@ class UserController extends Controller
                 'unique:users,email,' . $user->id,
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Organization
+            |--------------------------------------------------------------------------
+            */
+
             'organizational_unit_id' => [
                 'nullable',
                 'integer',
@@ -684,11 +965,41 @@ class UserController extends Controller
                 'exists:positions,id',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Reporting Structure
+            |--------------------------------------------------------------------------
+            */
+
+            'reports_to_user_id' => [
+                'nullable',
+                'integer',
+                'exists:users,id',
+                Rule::notIn([$user->id]),
+            ],
+
+            'can_be_reporting_manager' => [
+                'sometimes',
+                'boolean',
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Account Status
+            |--------------------------------------------------------------------------
+            */
+
             'account_status' => [
                 'required',
                 'string',
                 'max:20',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Role
+            |--------------------------------------------------------------------------
+            */
 
             'role' => [
                 'nullable',
@@ -697,11 +1008,11 @@ class UserController extends Controller
             ],
 
             /*
-             * Password is optional.
-             *
-             * The current View.tsx uses this field for
-             * administrator-generated temporary passwords.
-             */
+            |--------------------------------------------------------------------------
+            | Password
+            |--------------------------------------------------------------------------
+            */
+
             'password' => [
                 'nullable',
                 'string',
@@ -711,298 +1022,316 @@ class UserController extends Controller
         ]);
 
         /*
-         * Capture the original values BEFORE updating.
-         */
-        $original = $user->only([
-            'username',
-            'employee_number',
-            'name',
-            'first_name',
-            'middle_name',
-            'last_name',
-            'contact_number',
-            'email',
-            'organizational_unit_id',
-            'position_id',
-            'account_status',
-            'must_change_password',
-        ]);
+        |--------------------------------------------------------------------------
+        | Normalize Reporting Manager Flag
+        |--------------------------------------------------------------------------
+        */
+
+        $canBeReportingManager =
+            $request->boolean(
+                'can_be_reporting_manager'
+            );
 
         /*
-         * Capture the original role before syncRoles().
-         */
-        $originalRoles = $user
-            ->roles()
-            ->pluck('name')
-            ->values()
-            ->all();
+        |--------------------------------------------------------------------------
+        | Resolve Reporting Manager
+        |--------------------------------------------------------------------------
+        |
+        | A reporting manager must:
+        |
+        | 1. Be active
+        | 2. Have can_be_reporting_manager = true
+        | 3. Not be the current user
+        |
+        */
+
+        $manager = null;
+
+        if (
+            array_key_exists(
+                'reports_to_user_id',
+                $validated
+            ) &&
+            filled(
+                $validated['reports_to_user_id']
+            )
+        ) {
+            $manager = User::query()
+                ->reportingManagers()
+                ->whereKey(
+                    $validated['reports_to_user_id']
+                )
+                ->whereKeyNot(
+                    $user->id
+                )
+                ->first();
+
+            if (!$manager) {
+                return back()
+                    ->withErrors([
+                        'reports_to_user_id' =>
+                            'The selected user is not authorized to be a reporting manager or head.',
+                    ])
+                    ->withInput();
+            }
+        }
 
         /*
-         * Determine whether the request contains a password.
-         *
-         * In the current View.tsx this means the administrator
-         * is performing a password reset.
-         */
-        $isPasswordReset =
-            filled($validated['password'] ?? null);
+        |--------------------------------------------------------------------------
+        | Prevent Invalid Reporting Structure
+        |--------------------------------------------------------------------------
+        |
+        | A user who is inactive should not retain a reporting manager.
+        |
+        */
 
-        $newRole =
-            $validated['role'] ?? null;
+        if (
+            $validated['account_status'] !== 'active' &&
+            !empty($validated['reports_to_user_id'])
+        ) {
+            return back()
+                ->withErrors([
+                    'reports_to_user_id' =>
+                        'Inactive users cannot be assigned to a reporting manager.',
+                ])
+                ->withInput();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update User
+        |--------------------------------------------------------------------------
+        */
 
         DB::transaction(function () use (
             $user,
             $validated,
-            $isPasswordReset,
-            $newRole,
+            $canBeReportingManager
         ) {
-            $user->update([
-                'username' => $validated['username'],
+            $oldValues = [
+                'username' =>
+                    $user->username,
 
                 'employee_number' =>
-                    $validated['employee_number'] ?? null,
+                    $user->employee_number,
 
-                'name' => $validated['name'],
-
-                'first_name' =>
-                    $validated['first_name'] ?? null,
-
-                'middle_name' =>
-                    $validated['middle_name'] ?? null,
-
-                'last_name' =>
-                    $validated['last_name'] ?? null,
-
-                'contact_number' =>
-                    $validated['contact_number'] ?? null,
+                'name' =>
+                    $user->name,
 
                 'email' =>
-                    $validated['email'] ?? null,
+                    $user->email,
 
                 'organizational_unit_id' =>
-                    $validated['organizational_unit_id'] ?? null,
+                    $user->organizational_unit_id,
 
                 'position_id' =>
-                    $validated['position_id'] ?? null,
+                    $user->position_id,
+
+                'reports_to_user_id' =>
+                    $user->reports_to_user_id,
+
+                'can_be_reporting_manager' =>
+                    $user->can_be_reporting_manager,
 
                 'account_status' =>
-                    $validated['account_status'],
-            ]);
+                    $user->account_status,
+            ];
 
             /*
-             * Password reset.
-             *
-             * NEVER save the plain temporary password.
-             */
-            if ($isPasswordReset) {
-                $user->update([
-                    'password' => Hash::make(
+            |--------------------------------------------------------------------------
+            | Basic User Information
+            |--------------------------------------------------------------------------
+            */
+
+            $user->username =
+                $validated['username'];
+
+            $user->employee_number =
+                $validated['employee_number'] ?? null;
+
+            $user->name =
+                $validated['name'];
+
+            $user->first_name =
+                $validated['first_name'] ?? null;
+
+            $user->middle_name =
+                $validated['middle_name'] ?? null;
+
+            $user->last_name =
+                $validated['last_name'] ?? null;
+
+            $user->contact_number =
+                $validated['contact_number'] ?? null;
+
+            $user->email =
+                $validated['email'] ?? null;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Organization
+            |--------------------------------------------------------------------------
+            */
+
+            $user->organizational_unit_id =
+                $validated['organizational_unit_id'] ?? null;
+
+            $user->position_id =
+                $validated['position_id'] ?? null;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Reporting Structure
+            |--------------------------------------------------------------------------
+            */
+
+            $user->reports_to_user_id =
+                $validated['reports_to_user_id'] ?? null;
+
+            $user->can_be_reporting_manager =
+                $canBeReportingManager;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Account
+            |--------------------------------------------------------------------------
+            */
+
+            $user->account_status =
+                $validated['account_status'];
+
+            /*
+            |--------------------------------------------------------------------------
+            | Password
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !empty(
+                    $validated['password']
+                )
+            ) {
+                $user->password =
+                    Hash::make(
                         $validated['password']
-                    ),
+                    );
 
-                    'password_changed_at' => now(),
+                $user->password_changed_at =
+                    now();
 
-                    'must_change_password' => true,
-                ]);
+                $user->must_change_password =
+                    false;
+            }
+
+            $user->save();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Role
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                array_key_exists(
+                    'role',
+                    $validated
+                )
+            ) {
+                $user->syncRoles(
+                    $validated['role']
+                        ? [$validated['role']]
+                        : []
+                );
             }
 
             /*
-             * Update the Spatie role.
-             */
-            if (array_key_exists('role', $validated)) {
-                $user->syncRoles(
-                    $newRole
-                        ? [$newRole]
-                        : [],
+            |--------------------------------------------------------------------------
+            | Audit
+            |--------------------------------------------------------------------------
+            */
+
+            $newValues = [
+                'username' =>
+                    $user->username,
+
+                'employee_number' =>
+                    $user->employee_number,
+
+                'name' =>
+                    $user->name,
+
+                'email' =>
+                    $user->email,
+
+                'organizational_unit_id' =>
+                    $user->organizational_unit_id,
+
+                'position_id' =>
+                    $user->position_id,
+
+                'reports_to_user_id' =>
+                    $user->reports_to_user_id,
+
+                'can_be_reporting_manager' =>
+                    $user->can_be_reporting_manager,
+
+                'account_status' =>
+                    $user->account_status,
+            ];
+
+            $changes = [];
+
+            foreach ($newValues as $field => $newValue) {
+                if (
+                    $oldValues[$field] !==
+                    $newValue
+                ) {
+                    $changes[$field] = [
+                        'old' =>
+                            $oldValues[$field],
+
+                        'new' =>
+                            $newValue,
+                    ];
+                }
+            }
+
+            if (
+                array_key_exists(
+                    'role',
+                    $validated
+                )
+            ) {
+                $changes['role'] = [
+                    'new' =>
+                        $validated['role'] ?? null,
+                ];
+            }
+
+            if (!empty($changes)) {
+                AuditLogger::log(
+                    action: 'user_updated',
+                    targetUser: $user,
+                    description:
+                        'User account updated by ' .
+                        (
+                            auth()->user()?->name ??
+                            auth()->user()?->username ??
+                            'System administrator'
+                        ),
+                    changes: $changes,
                 );
             }
         });
 
-        /*
-         * Refresh the model after the transaction.
-         */
-        $user->refresh();
-
-        /*
-         * ---------------------------------------------------------
-         * PASSWORD RESET AUDIT
-         * ---------------------------------------------------------
-         *
-         * This is deliberately separate from normal user changes.
-         */
-        if ($isPasswordReset) {
-            AuditLogger::log(
-                action: 'password_reset',
-                targetUser: $user,
-                description:
-                    'Password reset by ' .
-                    (
-                        auth()->user()?->name ??
-                        auth()->user()?->username ??
-                        'System administrator'
-                    ),
-                changes: [
-                    'password' => [
-                        'changed' => true,
-                    ],
-
-                    'must_change_password' => [
-                        'old' =>
-                            (bool) (
-                                $original['must_change_password']
-                                ?? false
-                            ),
-
-                        'new' =>
-                            (bool) (
-                                $user->must_change_password
-                            ),
-                    ],
-                ],
-            );
-
-            /*
-             * Do not record the generated password in the audit log.
-             */
-            return redirect()
-                ->route(
-                    'admin.users.show',
-                    $user,
-                )
-                ->with(
-                    'success',
-                    'Password reset successfully.',
-                );
-        }
-
-        /*
-         * ---------------------------------------------------------
-         * NORMAL USER EDIT AUDIT
-         * ---------------------------------------------------------
-         */
-        $freshValues = $user->only([
-            'username',
-            'employee_number',
-            'name',
-            'first_name',
-            'middle_name',
-            'last_name',
-            'contact_number',
-            'email',
-            'organizational_unit_id',
-            'position_id',
-            'account_status',
-        ]);
-
-        $changes = [];
-
-        foreach ($freshValues as $field => $newValue) {
-            $oldValue = $original[$field] ?? null;
-
-            if ((string) $oldValue !== (string) $newValue) {
-                $changes[$field] = [
-                    'old' => $oldValue,
-                    'new' => $newValue,
-                ];
-            }
-        }
-
-        /*
-         * Compare role changes.
-         */
-        $newRoles = $user
-            ->roles()
-            ->pluck('name')
-            ->values()
-            ->all();
-
-        if ($originalRoles !== $newRoles) {
-            $changes['role'] = [
-                'old' => implode(', ', $originalRoles) ?: null,
-                'new' => implode(', ', $newRoles) ?: null,
-            ];
-        }
-
-        /*
-         * Only create an audit record when something
-         * actually changed.
-         */
-        if (!empty($changes)) {
-            AuditLogger::log(
-                action: 'user_updated',
-                targetUser: $user,
-                description:
-                    'User account updated by ' .
-                    (
-                        auth()->user()?->name ??
-                        auth()->user()?->username ??
-                        'System administrator'
-                    ),
-                changes: $changes,
-            );
-        }
-
         return redirect()
             ->route(
                 'admin.users.show',
-                $user,
+                $user
             )
             ->with(
                 'success',
-                'User updated successfully.',
-            );
-    }
-
-    /**
-     * Delete a user.
-     */
-    public function destroy(User $user)
-    {
-        /*
-         * Capture identifying information before deletion.
-         */
-        $deletedUserName =
-            $user->name ??
-            $user->username ??
-            'User';
-
-        $deletedUserId = $user->id;
-
-        /*
-         * Record the audit BEFORE deleting the account.
-         *
-         * target_user_id becomes null automatically if the
-         * audit_logs foreign key uses nullOnDelete().
-         */
-        AuditLogger::log(
-            action: 'user_deleted',
-            targetUser: $user,
-            description:
-                'User account deleted by ' .
-                (
-                    auth()->user()?->name ??
-                    auth()->user()?->username ??
-                    'System administrator'
-                ),
-            changes: [
-                'user_id' => [
-                    'old' => $deletedUserId,
-                    'new' => null,
-                ],
-
-                'name' => [
-                    'old' => $deletedUserName,
-                    'new' => null,
-                ],
-            ],
-        );
-
-        $user->delete();
-
-        return redirect()
-            ->route('admin.users.index')
-            ->with(
-                'success',
-                'User deleted successfully.',
+                'User updated successfully.'
             );
     }
 }

@@ -13,17 +13,29 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            /*
+            |--------------------------------------------------------------------------
+            | Identity
+            |--------------------------------------------------------------------------
+            */
+
             'id' => $this->id,
 
             /*
             |--------------------------------------------------------------------------
-            | Login / Employee
+            | Login / Employee Information
             |--------------------------------------------------------------------------
             */
 
             'username' => $this->username,
 
             'employee_number' => $this->employee_number,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Personal Information
+            |--------------------------------------------------------------------------
+            */
 
             'name' => $this->name,
 
@@ -32,6 +44,12 @@ class UserResource extends JsonResource
             'middle_name' => $this->middle_name,
 
             'last_name' => $this->last_name,
+
+            /*
+            |--------------------------------------------------------------------------
+            | Contact Information
+            |--------------------------------------------------------------------------
+            */
 
             'contact_number' => $this->contact_number,
 
@@ -45,37 +63,173 @@ class UserResource extends JsonResource
 
             'organizational_unit' => $this->whenLoaded(
                 'organizationalUnit',
-                fn () => [
-                    'id' => $this->organizationalUnit->id,
-                    'code' => $this->organizationalUnit->code,
-                    'name' => $this->organizationalUnit->name,
-                ],
+                function () {
+                    if (!$this->organizationalUnit) {
+                        return null;
+                    }
+
+                    return [
+                        'id' => $this->organizationalUnit->id,
+                        'code' => $this->organizationalUnit->code,
+                        'name' => $this->organizationalUnit->name,
+                    ];
+                }
             ),
 
             'position' => $this->whenLoaded(
                 'position',
-                fn () => $this->position
-                    ? [
+                function () {
+                    if (!$this->position) {
+                        return null;
+                    }
+
+                    return [
                         'id' => $this->position->id,
                         'name' => $this->position->name,
-                    ]
-                    : null
+                    ];
+                }
             ),
 
             /*
             |--------------------------------------------------------------------------
-            | Access
+            | Reporting Structure
+            |--------------------------------------------------------------------------
+            |
+            | This is used by:
+            |
+            | Employee
+            |      ↓
+            | Reporting Manager / Head
+            |      ↓
+            | Leave Approval
+            |
+            */
+
+            'reports_to_user_id' =>
+                $this->reports_to_user_id,
+
+            'reportsTo' => $this->whenLoaded(
+                'reportsTo',
+                function () {
+                    if (!$this->reportsTo) {
+                        return null;
+                    }
+
+                    return [
+                        'id' => $this->reportsTo->id,
+
+                        'name' => $this->reportsTo->name,
+
+                        'employee_number' =>
+                            $this->reportsTo->employee_number,
+
+                        'username' =>
+                            $this->reportsTo->username,
+
+                        'first_name' =>
+                            $this->reportsTo->first_name,
+
+                        'middle_name' =>
+                            $this->reportsTo->middle_name,
+
+                        'last_name' =>
+                            $this->reportsTo->last_name,
+
+                        'email' =>
+                            $this->reportsTo->email,
+
+                        'contact_number' =>
+                            $this->reportsTo->contact_number,
+
+                        'account_status' =>
+                            $this->reportsTo->account_status,
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Manager Position
+                        |--------------------------------------------------------------------------
+                        */
+
+                        'position' =>
+                            $this->reportsTo->relationLoaded('position')
+                                && $this->reportsTo->position
+                                ? [
+                                    'id' =>
+                                        $this->reportsTo->position->id,
+
+                                    'name' =>
+                                        $this->reportsTo->position->name,
+                                ]
+                                : null,
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Manager Organization
+                        |--------------------------------------------------------------------------
+                        */
+
+                        'organizational_unit' =>
+                            $this->reportsTo->relationLoaded(
+                                'organizationalUnit'
+                            )
+                            && $this->reportsTo->organizationalUnit
+                                ? [
+                                    'id' =>
+                                        $this->reportsTo
+                                            ->organizationalUnit
+                                            ->id,
+
+                                    'code' =>
+                                        $this->reportsTo
+                                            ->organizationalUnit
+                                            ->code,
+
+                                    'name' =>
+                                        $this->reportsTo
+                                            ->organizationalUnit
+                                            ->name,
+                                ]
+                                : null,
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Manager Roles
+                        |--------------------------------------------------------------------------
+                        */
+
+                        'roles' =>
+                            $this->reportsTo->relationLoaded('roles')
+                                ? $this->reportsTo->roles
+                                    ->map(
+                                        fn ($role) => [
+                                            'id' => $role->id,
+                                            'name' => $role->name,
+                                        ]
+                                    )
+                                    ->values()
+                                : null,
+                    ];
+                }
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Access / Roles
             |--------------------------------------------------------------------------
             */
 
             'roles' => $this->whenLoaded(
                 'roles',
-                fn () => $this->roles
-                    ->map(fn ($role) => [
-                        'id' => $role->id,
-                        'name' => $role->name,
-                    ])
-                    ->values()
+                function () {
+                    return $this->roles
+                        ->map(
+                            fn ($role) => [
+                                'id' => $role->id,
+                                'name' => $role->name,
+                            ]
+                        )
+                        ->values();
+                }
             ),
 
             /*
@@ -86,9 +240,17 @@ class UserResource extends JsonResource
 
             'account_status' => $this->account_status,
 
-            'last_login_at' => $this->last_login_at?->toISOString(),
+            /*
+            |--------------------------------------------------------------------------
+            | Activity
+            |--------------------------------------------------------------------------
+            */
 
-            'password_changed_at' => $this->password_changed_at?->toISOString(),
+            'last_login_at' =>
+                $this->last_login_at?->toISOString(),
+
+            'password_changed_at' =>
+                $this->password_changed_at?->toISOString(),
 
             /*
             |--------------------------------------------------------------------------
@@ -96,9 +258,11 @@ class UserResource extends JsonResource
             |--------------------------------------------------------------------------
             */
 
-            'created_at' => $this->created_at?->toISOString(),
+            'created_at' =>
+                $this->created_at?->toISOString(),
 
-            'updated_at' => $this->updated_at?->toISOString(),
+            'updated_at' =>
+                $this->updated_at?->toISOString(),
         ];
     }
 }
