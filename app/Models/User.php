@@ -7,12 +7,12 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $contact_number
  * @property int|null $organizational_unit_id
  * @property int|null $position_id
+ * @property int|null $reports_to_user_id
  * @property string $account_status
  * @property Carbon|null $last_login_at
  * @property Carbon|null $password_changed_at
@@ -49,6 +50,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'contact_number',
     'organizational_unit_id',
     'position_id',
+    'reports_to_user_id',
     'account_status',
     'password',
     'password_changed_at',
@@ -77,6 +79,12 @@ class User extends Authenticatable
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Organization
+    |--------------------------------------------------------------------------
+    */
+
     public function organizationalUnit(): BelongsTo
     {
         return $this->belongsTo(OrganizationalUnit::class);
@@ -86,20 +94,60 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Position::class);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reporting Hierarchy
+    |--------------------------------------------------------------------------
+    */
+
     /**
- * Audit records where this user was the person performing the action.
- */
-public function auditLogs(): HasMany
-{
-    return $this->hasMany(AuditLog::class, 'actor_id');
-}
+     * The manager/head this employee reports to.
+     */
+    public function reportsTo(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'reports_to_user_id'
+        );
+    }
 
-/**
- * Audit records where this user was the affected account.
- */
-public function targetAuditLogs(): HasMany
-{
-    return $this->hasMany(AuditLog::class, 'target_user_id');
-}
+    /**
+     * Employees directly reporting to this user.
+     */
+    public function directReports(): HasMany
+    {
+        return $this->hasMany(
+            User::class,
+            'reports_to_user_id'
+        );
+    }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Audit Logs
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Audit records where this user performed the action.
+     */
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(
+            AuditLog::class,
+            'actor_id'
+        );
+    }
+
+    /**
+     * Audit records where this user was the affected account.
+     */
+    public function targetAuditLogs(): HasMany
+    {
+        return $this->hasMany(
+            AuditLog::class,
+            'target_user_id'
+        );
+    }
 }

@@ -33,6 +33,7 @@ class RolePermissionSeeder extends Seeder
             'leave.edit',
             'leave.delete',
             'leave.approve',
+            'leave.process',
 
             'overtime.view',
             'overtime.create',
@@ -145,6 +146,7 @@ class RolePermissionSeeder extends Seeder
 
             'leave.view',
             'leave.approve',
+            'leave.process', 
 
             'overtime.view',
             'overtime.approve',
