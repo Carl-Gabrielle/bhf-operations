@@ -810,7 +810,7 @@ export default function Index({
                                                         role,
                                                     )
                                                 }
-                                                className="h-9 rounded-lg bg-[#4389BC] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#28658F]"
+                                                className=" cursor-pointer h-9 rounded-lg bg-[#4389BC] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#28658F]"
                                             >
                                                 Manage Access
 

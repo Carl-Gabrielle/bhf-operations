@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 
 import {
     type ColumnDef,
     type SortingState,
     flexRender,
     getCoreRowModel,
-    getFilteredRowModel,
-    getPaginationRowModel,
-    getSortedRowModel,
     useReactTable,
 } from '@tanstack/react-table';
 
@@ -22,6 +19,7 @@ import {
     ChevronRight,
     Eye,
     Filter,
+    Loader2,
     Search,
     SlidersHorizontal,
     UserRound,
@@ -55,11 +53,10 @@ import type {
     OrganizationalUnit,
     PaginatedUsers,
 } from '@/types/auth';
-import { route } from 'ziggy-js';
 
 /*
 |--------------------------------------------------------------------------
-| Types
+| Props
 |--------------------------------------------------------------------------
 */
 
@@ -70,6 +67,11 @@ interface UserManagementProps {
 
     filters?: {
         search?: string;
+        status?: string;
+        role?: string;
+        organization?: string;
+        sort?: string;
+        direction?: string;
     };
 }
 
@@ -79,43 +81,63 @@ interface UserManagementProps {
 |--------------------------------------------------------------------------
 */
 
-function getInitials(name: string): string {
+function getInitials(
+    name?: string | null,
+): string {
+    if (!name || !name.trim()) {
+        return 'U';
+    }
+
     return name
         .trim()
         .split(/\s+/)
         .filter(Boolean)
         .slice(0, 2)
-        .map((part) => part.charAt(0))
+        .map((part) =>
+            part.charAt(0),
+        )
         .join('')
         .toUpperCase();
 }
 
-function formatRole(role: string): string {
+function formatRole(
+    role?: string | null,
+): string {
     if (!role) {
         return 'No role';
     }
 
     return role
         .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, (letter) =>
-            letter.toUpperCase(),
+        .replace(
+            /\b\w/g,
+            (letter) =>
+                letter.toUpperCase(),
         );
 }
 
-function formatStatus(status: string): string {
+function formatStatus(
+    status?: string | null,
+): string {
     if (!status) {
         return 'Unknown';
     }
 
     return status
         .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, (letter) =>
-            letter.toUpperCase(),
+        .replace(
+            /\b\w/g,
+            (letter) =>
+                letter.toUpperCase(),
         );
 }
 
-function getStatusClass(status: string): string {
-    switch (status.toLowerCase()) {
+function getStatusClass(
+    status?: string | null,
+): string {
+    switch (
+        (status ?? '').toLowerCase()
+    ) {
         case 'active':
             return 'border-emerald-200 bg-emerald-50 text-emerald-700';
 
@@ -142,7 +164,7 @@ function getStatusClass(status: string): string {
 function StatusBadge({
     status,
 }: {
-    status: string;
+    status?: string | null;
 }) {
     return (
         <Badge
@@ -165,7 +187,10 @@ function StatusBadge({
 function SortIcon({
     direction,
 }: {
-    direction?: false | 'asc' | 'desc';
+    direction?:
+        | false
+        | 'asc'
+        | 'desc';
 }) {
     if (direction === 'asc') {
         return (
@@ -186,7 +211,7 @@ function SortIcon({
 
 /*
 |--------------------------------------------------------------------------
-| User Management
+| Component
 |--------------------------------------------------------------------------
 */
 
@@ -197,143 +222,430 @@ export default function UserManagement({
 }: UserManagementProps) {
     /*
     |--------------------------------------------------------------------------
-    | Local state
+    | State
     |--------------------------------------------------------------------------
     */
 
-    const [search, setSearch] = useState(
-        filters?.search ?? '',
-    );
+    const [search, setSearch] =
+        useState(
+            filters?.search ?? '',
+        );
 
-    const [status, setStatus] = useState('all');
+    const [status, setStatus] =
+        useState(
+            filters?.status ?? 'all',
+        );
 
-    const [role, setRole] = useState('all');
+    const [role, setRole] =
+        useState(
+            filters?.role ?? 'all',
+        );
 
     const [organization, setOrganization] =
-        useState('all');
+        useState(
+            filters?.organization ?? 'all',
+        );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sorting
+    |--------------------------------------------------------------------------
+    */
+
+    const initialSort =
+        filters?.sort ?? 'created_at';
+
+    const initialDirection =
+        filters?.direction ?? 'desc';
 
     const [sorting, setSorting] =
         useState<SortingState>([
             {
-                id: 'created_at',
-                desc: true,
+                id: initialSort,
+                desc:
+                    initialDirection ===
+                    'desc',
             },
         ]);
 
     /*
     |--------------------------------------------------------------------------
-    | Filter options
+    | Loading
     |--------------------------------------------------------------------------
     */
 
-    /*
-     * Statuses are based on actual user accounts.
-     */
-    const statusOptions = useMemo(() => {
-        const statuses = users.data
-            .map((user) => user.account_status)
-            .filter(Boolean);
-
-        return [...new Set(statuses)].sort();
-    }, [users.data]);
-
-    /*
-     * Roles are based on actual roles assigned
-     * to users.
-     */
-    const roleOptions = useMemo(() => {
-        const roles = users.data.flatMap(
-            (user) =>
-                user.roles?.map(
-                    (item) => item.name,
-                ) ?? [],
-        );
-
-        return [...new Set(roles)].sort();
-    }, [users.data]);
-
-    /*
-     * Organizations come directly from the
-     * organizational_units table through Laravel.
-     *
-     * This means organizations with zero users
-     * will still appear in the dropdown.
-     */
-   const organizationOptions = useMemo(() => {
-    return [...organizationalUnits].sort(
-        (a, b) => a.code.localeCompare(b.code),
-    );
-}, [organizationalUnits]);
+    const [isLoading, setIsLoading] =
+        useState(false);
 
     /*
     |--------------------------------------------------------------------------
-    | Search + dropdown filtering
+    | Prevent duplicate initial requests
     |--------------------------------------------------------------------------
     */
 
-    const filteredUsers = useMemo(() => {
-        return users.data.filter((user) => {
-            const matchesStatus =
-                status === 'all' ||
-                user.account_status === status;
+    const initialized =
+        useRef(false);
 
-            const matchesRole =
-                role === 'all' ||
-                user.roles?.some(
-                    (item) => item.name === role,
-                );
+    /*
+    |--------------------------------------------------------------------------
+    | Pagination
+    |--------------------------------------------------------------------------
+    */
 
-            const matchesOrganization =
-                organization === 'all' ||
-                String(
-                    user.organizational_unit?.id ?? '',
-                ) === organization;
+    const currentPage =
+        users.meta?.current_page ?? 1;
 
-            return (
-                matchesStatus &&
-                matchesRole &&
-                matchesOrganization
+    const lastPage =
+        users.meta?.last_page ?? 1;
+
+    const from =
+        users.meta?.from ?? 0;
+
+    const to =
+        users.meta?.to ?? 0;
+
+    const total =
+        users.meta?.total ?? 0;
+
+    const previousUrl =
+        users.links?.prev ?? null;
+
+    const nextUrl =
+        users.links?.next ?? null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Organization options
+    |--------------------------------------------------------------------------
+    |
+    | These come directly from Laravel so all
+    | organizations remain available regardless
+    | of the current page.
+    |
+    */
+
+    const organizationOptions =
+        useMemo(() => {
+            return [
+                ...organizationalUnits,
+            ].sort((a, b) =>
+                a.code.localeCompare(
+                    b.code,
+                ),
             );
-        });
-    }, [
-        users.data,
-        status,
-        role,
-        organization,
-    ]);
+        }, [
+            organizationalUnits,
+        ]);
 
     /*
     |--------------------------------------------------------------------------
-    | Columns
+    | Status options
+    |--------------------------------------------------------------------------
+    |
+    | Keep these static so they don't change
+    | depending on the current page.
+    |
+    */
+
+    const statusOptions = [
+        'active',
+        'inactive',
+        'pending',
+        'suspended',
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Role options
+    |--------------------------------------------------------------------------
+    |
+    | Roles should ideally come from the backend.
+    | For now we derive them from loaded users.
+    |
+    */
+
+    const roleOptions = useMemo(() => {
+        const roles =
+            users.data.flatMap(
+                (user) =>
+                    user.roles?.map(
+                        (item) =>
+                            item.name,
+                    ) ?? [],
+            );
+
+        return [
+            ...new Set(roles),
+        ].sort();
+    }, [users.data]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Server Request
+    |--------------------------------------------------------------------------
+    */
+
+    const requestUsers = (
+        overrides?: {
+            search?: string;
+            status?: string;
+            role?: string;
+            organization?: string;
+            page?: number;
+            sort?: string;
+            direction?: string;
+        },
+    ) => {
+        const currentSorting =
+            sorting[0];
+
+        const sort =
+            overrides?.sort ??
+            currentSorting?.id ??
+            'created_at';
+
+        const direction =
+            overrides?.direction ??
+            (currentSorting?.desc
+                ? 'desc'
+                : 'asc');
+
+        setIsLoading(true);
+
+        router.get(
+            '/admin/users',
+            {
+                search:
+                    (
+                        overrides?.search ??
+                        search
+                    ).trim() ||
+                    undefined,
+
+                status:
+                    (
+                        overrides?.status ??
+                        status
+                    ) !== 'all'
+                        ? overrides?.status ??
+                          status
+                        : undefined,
+
+                role:
+                    (
+                        overrides?.role ??
+                        role
+                    ) !== 'all'
+                        ? overrides?.role ??
+                          role
+                        : undefined,
+
+                organization:
+                    (
+                        overrides?.organization ??
+                        organization
+                    ) !== 'all'
+                        ? overrides?.organization ??
+                          organization
+                        : undefined,
+
+                sort,
+
+                direction,
+
+                page:
+                    overrides?.page ??
+                    1,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+
+                only: [
+                    'users',
+                    'filters',
+                ],
+
+                onFinish: () => {
+                    setIsLoading(false);
+                },
+            },
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search Debounce
+    |--------------------------------------------------------------------------
+    */
+
+    useEffect(() => {
+        if (!initialized.current) {
+            initialized.current = true;
+            return;
+        }
+
+        const timeout =
+            window.setTimeout(() => {
+                const currentSearch =
+                    filters?.search ?? '';
+
+                if (
+                    search.trim() !==
+                    currentSearch.trim()
+                ) {
+                    requestUsers({
+                        search,
+                        page: 1,
+                    });
+                }
+            }, 300);
+
+        return () =>
+            window.clearTimeout(
+                timeout,
+            );
+    }, [search]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Status Filter
+    |--------------------------------------------------------------------------
+    */
+
+    useEffect(() => {
+        if (!initialized.current) {
+            return;
+        }
+
+        const currentStatus =
+            filters?.status ?? 'all';
+
+        if (
+            status !==
+            currentStatus
+        ) {
+            requestUsers({
+                status,
+                page: 1,
+            });
+        }
+    }, [status]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Role Filter
+    |--------------------------------------------------------------------------
+    */
+
+    useEffect(() => {
+        if (!initialized.current) {
+            return;
+        }
+
+        const currentRole =
+            filters?.role ?? 'all';
+
+        if (
+            role !== currentRole
+        ) {
+            requestUsers({
+                role,
+                page: 1,
+            });
+        }
+    }, [role]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Organization Filter
+    |--------------------------------------------------------------------------
+    */
+
+    useEffect(() => {
+        if (!initialized.current) {
+            return;
+        }
+
+        const currentOrganization =
+            filters?.organization ??
+            'all';
+
+        if (
+            organization !==
+            currentOrganization
+        ) {
+            requestUsers({
+                organization,
+                page: 1,
+            });
+        }
+    }, [organization]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | TanStack Columns
     |--------------------------------------------------------------------------
     */
 
     const columns =
-        useMemo<ColumnDef<ManagedUser>[]>(
+        useMemo<
+            ColumnDef<ManagedUser>[]
+        >(
             () => [
+                /*
+                |--------------------------------------------------------------------------
+                | Employee
+                |--------------------------------------------------------------------------
+                */
+
                 {
                     accessorKey: 'name',
 
-                    header: ({ column }) => (
+                    header: ({
+                        column,
+                    }) => (
                         <button
                             type="button"
-                            onClick={() =>
-                                column.toggleSorting(
+                            onClick={() => {
+                                const nextDirection =
                                     column.getIsSorted() ===
-                                        'asc',
-                                )
-                            }
-                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-900"
+                                    'asc'
+                                        ? 'desc'
+                                        : 'asc';
+
+                                setSorting([
+                                    {
+                                        id: 'name',
+                                        desc:
+                                            nextDirection ===
+                                            'desc',
+                                    },
+                                ]);
+
+                                requestUsers({
+                                    sort: 'name',
+                                    direction:
+                                        nextDirection,
+                                    page: 1,
+                                });
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900"
                         >
                             Employee
 
                             <SortIcon
-                                direction={column.getIsSorted()}
+                                direction={
+                                    column.getIsSorted()
+                                }
                             />
                         </button>
                     ),
 
-                    cell: ({ row }) => {
+                    cell: ({
+                        row,
+                    }) => {
                         const user =
                             row.original;
 
@@ -349,12 +661,14 @@ export default function UserManagement({
 
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-slate-800">
-                                        {user.name}
+                                        {user.name ||
+                                            'Unnamed User'}
                                     </p>
 
                                     <p className="mt-0.5 truncate text-xs text-slate-400">
                                         {user.employee_number ||
-                                            user.username}
+                                            user.username ||
+                                            '—'}
                                     </p>
                                 </div>
                             </div>
@@ -362,62 +676,96 @@ export default function UserManagement({
                     },
                 },
 
+                /*
+                |--------------------------------------------------------------------------
+                | Organization
+                |--------------------------------------------------------------------------
+                */
+
                 {
                     id: 'organizational_unit',
 
-                    accessorFn: (user) =>
+                    accessorFn: (
+                        user,
+                    ) =>
                         user
                             .organizational_unit
-                            ?.name ?? '',
+                            ?.name ??
+                        '',
 
-                    header: 'Organization',
+                    header:
+                        'Organization',
 
-                    cell: ({ row }) => {
-                        const organization =
-                            row.original
-                                .organizational_unit
-                                ?.name;
+                    cell: ({
+                        row,
+                    }) => (
+                        <div className="flex items-center gap-2">
+                            <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
 
-                        return (
-                            <div className="flex items-center gap-2">
-                                <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-
-                                <span className="text-sm text-slate-600">
-                                    {organization ||
-                                        '—'}
-                                </span>
-                            </div>
-                        );
-                    },
+                            <span className="text-sm text-slate-600">
+                                {row
+                                    .original
+                                    .organizational_unit
+                                    ?.name ||
+                                    '—'}
+                            </span>
+                        </div>
+                    ),
                 },
+
+                /*
+                |--------------------------------------------------------------------------
+                | Position
+                |--------------------------------------------------------------------------
+                */
 
                 {
                     id: 'position',
 
-                    accessorFn: (user) =>
-                        user.position?.name ?? '',
+                    accessorFn: (
+                        user,
+                    ) =>
+                        user.position
+                            ?.name ?? '',
 
-                    header: 'Position',
+                    header:
+                        'Position',
 
-                    cell: ({ row }) => (
+                    cell: ({
+                        row,
+                    }) => (
                         <span className="text-sm text-slate-600">
-                            {row.original.position
-                                ?.name || '—'}
+                            {row.original
+                                .position
+                                ?.name ||
+                                '—'}
                         </span>
                     ),
                 },
 
+                /*
+                |--------------------------------------------------------------------------
+                | Role
+                |--------------------------------------------------------------------------
+                */
+
                 {
                     id: 'role',
 
-                    accessorFn: (user) =>
-                        user.roles?.[0]?.name ?? '',
+                    accessorFn: (
+                        user,
+                    ) =>
+                        user.roles?.[0]
+                            ?.name ?? '',
 
                     header: 'Role',
 
-                    cell: ({ row }) => {
+                    cell: ({
+                        row,
+                    }) => {
                         const primaryRole =
-                            row.original.roles?.[0];
+                            row.original
+                                .roles?.[0];
 
                         return primaryRole ? (
                             <Badge
@@ -436,30 +784,59 @@ export default function UserManagement({
                     },
                 },
 
+                /*
+                |--------------------------------------------------------------------------
+                | Status
+                |--------------------------------------------------------------------------
+                */
+
                 {
                     accessorKey:
                         'account_status',
 
-                    header: ({ column }) => (
+                    header: ({
+                        column,
+                    }) => (
                         <button
                             type="button"
-                            onClick={() =>
-                                column.toggleSorting(
+                            onClick={() => {
+                                const nextDirection =
                                     column.getIsSorted() ===
-                                        'asc',
-                                )
-                            }
-                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-900"
+                                    'asc'
+                                        ? 'desc'
+                                        : 'asc';
+
+                                setSorting([
+                                    {
+                                        id: 'account_status',
+                                        desc:
+                                            nextDirection ===
+                                            'desc',
+                                    },
+                                ]);
+
+                                requestUsers({
+                                    sort: 'account_status',
+                                    direction:
+                                        nextDirection,
+                                    page: 1,
+                                });
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900"
                         >
                             Status
 
                             <SortIcon
-                                direction={column.getIsSorted()}
+                                direction={
+                                    column.getIsSorted()
+                                }
                             />
                         </button>
                     ),
 
-                    cell: ({ row }) => (
+                    cell: ({
+                        row,
+                    }) => (
                         <StatusBadge
                             status={
                                 row.original
@@ -469,34 +846,66 @@ export default function UserManagement({
                     ),
                 },
 
+                /*
+                |--------------------------------------------------------------------------
+                | Created
+                |--------------------------------------------------------------------------
+                */
+
                 {
                     accessorKey:
                         'created_at',
 
-                    header: ({ column }) => (
+                    header: ({
+                        column,
+                    }) => (
                         <button
                             type="button"
-                            onClick={() =>
-                                column.toggleSorting(
+                            onClick={() => {
+                                const nextDirection =
                                     column.getIsSorted() ===
-                                        'asc',
-                                )
-                            }
-                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-900"
+                                    'asc'
+                                        ? 'desc'
+                                        : 'asc';
+
+                                setSorting([
+                                    {
+                                        id: 'created_at',
+                                        desc:
+                                            nextDirection ===
+                                            'desc',
+                                    },
+                                ]);
+
+                                requestUsers({
+                                    sort: 'created_at',
+                                    direction:
+                                        nextDirection,
+                                    page: 1,
+                                });
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900"
                         >
                             Created
 
                             <SortIcon
-                                direction={column.getIsSorted()}
+                                direction={
+                                    column.getIsSorted()
+                                }
                             />
                         </button>
                     ),
 
-                    cell: ({ row }) => (
+                    cell: ({
+                        row,
+                    }) => (
                         <span className="whitespace-nowrap text-sm text-slate-500">
-                            {row.original.created_at
+                            {row.original
+                                .created_at
                                 ? new Date(
-                                      row.original.created_at,
+                                      row
+                                          .original
+                                          .created_at,
                                   ).toLocaleDateString(
                                       'en-US',
                                       {
@@ -510,14 +919,23 @@ export default function UserManagement({
                     ),
                 },
 
+                /*
+                |--------------------------------------------------------------------------
+                | Actions
+                |--------------------------------------------------------------------------
+                */
+
                 {
                     id: 'actions',
 
-                    enableSorting: false,
+                    enableSorting:
+                        false,
 
                     header: '',
 
-                    cell: ({ row }) => (
+                    cell: ({
+                        row,
+                    }) => (
                         <Button
                             asChild
                             type="button"
@@ -525,148 +943,122 @@ export default function UserManagement({
                             size="icon"
                             className="h-8 w-8 rounded-md text-slate-400 hover:bg-slate-100 hover:text-[#173B67]"
                         >
-                           <Link
-                            href={`/admin/users/${row.original.id}`}
-                            aria-label={`View ${row.original.name}`}
-                        >
-                            <Eye className="h-4 w-4" />
-                        </Link>
+                            <Link
+                                href={`/admin/users/${row.original.id}`}
+                                aria-label={`View ${
+                                    row.original
+                                        .name ??
+                                    'user'
+                                }`}
+                            >
+                                <Eye className="h-4 w-4" />
+                            </Link>
                         </Button>
                     ),
                 },
             ],
-            [],
+            [
+                sorting,
+                search,
+                status,
+                role,
+                organization,
+            ],
         );
 
     /*
     |--------------------------------------------------------------------------
     | TanStack Table
     |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    |
+    | No getPaginationRowModel().
+    |
+    | Laravel owns pagination.
+    |
     */
 
-    const table = useReactTable({
-        data: filteredUsers,
+    const table =
+        useReactTable({
+            data: users.data,
 
-        columns,
+            columns,
 
-        state: {
-            sorting,
-            globalFilter: search,
-        },
-
-        onSortingChange: setSorting,
-
-        onGlobalFilterChange: setSearch,
-
-        globalFilterFn: (
-            row,
-            _columnId,
-            filterValue,
-        ) => {
-            const query = String(
-                filterValue ?? '',
-            )
-                .trim()
-                .toLowerCase();
-
-            if (!query) {
-                return true;
-            }
-
-            const user = row.original;
-
-            const searchableValues = [
-                user.name,
-                user.username,
-                user.employee_number,
-                user.email,
-                user.contact_number,
-                user.account_status,
-                user.position?.name,
-                user.organizational_unit?.name,
-                ...(user.roles?.map(
-                    (item) => item.name,
-                ) ?? []),
-            ];
-
-            return searchableValues.some(
-                (value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(query),
-            );
-        },
-
-        getCoreRowModel:
-            getCoreRowModel(),
-
-        getFilteredRowModel:
-            getFilteredRowModel(),
-
-        getSortedRowModel:
-            getSortedRowModel(),
-
-        getPaginationRowModel:
-            getPaginationRowModel(),
-
-        initialState: {
-            pagination: {
-                pageSize: 20,
+            state: {
+                sorting,
             },
-        },
 
-        enableSortingRemoval: false,
-    });
+            getCoreRowModel:
+                getCoreRowModel(),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Reset pagination when filters change
-    |--------------------------------------------------------------------------
-    */
+            manualPagination:
+                true,
 
-    useEffect(() => {
-        table.setPageIndex(0);
-    }, [
-        search,
-        status,
-        role,
-        organization,
-    ]);
+            manualSorting: true,
+
+            pageCount: lastPage,
+        });
 
     /*
     |--------------------------------------------------------------------------
-    | Clear filters
+    | Pagination
     |--------------------------------------------------------------------------
     */
 
-    const clearFilters = () => {
-        setSearch('');
-        setStatus('all');
-        setRole('all');
-        setOrganization('all');
-        table.setPageIndex(0);
+    const goToPage = (
+        page: number,
+    ) => {
+        if (
+            page < 1 ||
+            page > lastPage ||
+            page === currentPage
+        ) {
+            return;
+        }
+
+        requestUsers({
+            page,
+        });
     };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clear Filters
+    |--------------------------------------------------------------------------
+    */
+
+    const clearFilters =
+        () => {
+            setSearch('');
+            setStatus('all');
+            setRole('all');
+            setOrganization(
+                'all',
+            );
+
+            requestUsers({
+                search: '',
+                status: 'all',
+                role: 'all',
+                organization:
+                    'all',
+                page: 1,
+            });
+        };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Filter State
+    |--------------------------------------------------------------------------
+    */
 
     const hasFilters =
         search.trim() !== '' ||
         status !== 'all' ||
         role !== 'all' ||
-        organization !== 'all';
-
-    /*
-    |--------------------------------------------------------------------------
-    | Table statistics
-    |--------------------------------------------------------------------------
-    */
-
-    const filteredCount =
-        table.getFilteredRowModel().rows.length;
-
-    const currentPage =
-        table.getState().pagination.pageIndex + 1;
-
-    const pageCount =
-        table.getPageCount();
+        organization !==
+            'all';
 
     /*
     |--------------------------------------------------------------------------
@@ -709,18 +1101,17 @@ export default function UserManagement({
                         </div>
 
                         <Button
-                        type="button"
-                        className="h-10 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#123052]"
-                    >  
-                    
-                        <Link href="/admin/users/create">
-                        Add User
-                    </Link>
-                           
-                    </Button>
+                            asChild
+                            type="button"
+                            className="h-10 rounded-lg bg-[#173B67] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#123052]"
+                        >
+                            <Link href="/admin/users/create">
+                                Add User
+                            </Link>
+                        </Button>
                     </header>
 
-                    {/* Search + Filters */}
+                    {/* Filters */}
 
                     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
@@ -732,26 +1123,37 @@ export default function UserManagement({
 
                                 <Input
                                     value={search}
-                                    onChange={(event) =>
+                                    onChange={(
+                                        event,
+                                    ) =>
                                         setSearch(
-                                            event.target.value,
+                                            event
+                                                .target
+                                                .value,
                                         )
                                     }
                                     placeholder="Search employees..."
                                     className="h-10 rounded-lg border-slate-200 bg-white pl-10 pr-16 text-sm shadow-none focus-visible:border-[#173B67] focus-visible:ring-[#173B67]/20"
                                 />
 
-                                {search && (
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setSearch('')
-                                        }
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 transition-colors hover:text-slate-700"
-                                    >
-                                        Clear
-                                    </button>
+                                {isLoading && (
+                                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#173B67]" />
                                 )}
+
+                                {!isLoading &&
+                                    search && (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setSearch(
+                                                    '',
+                                                )
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 hover:text-slate-700"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
@@ -759,8 +1161,12 @@ export default function UserManagement({
                                 {/* Status */}
 
                                 <Select
-                                    value={status}
-                                    onValueChange={setStatus}
+                                    value={
+                                        status
+                                    }
+                                    onValueChange={
+                                        setStatus
+                                    }
                                 >
                                     <SelectTrigger className="h-10 w-[145px] rounded-lg border-slate-200 bg-white text-sm shadow-none">
                                         <Filter className="mr-2 h-3.5 w-3.5 text-slate-400" />
@@ -774,10 +1180,16 @@ export default function UserManagement({
                                         </SelectItem>
 
                                         {statusOptions.map(
-                                            (item) => (
+                                            (
+                                                item,
+                                            ) => (
                                                 <SelectItem
-                                                    key={item}
-                                                    value={item}
+                                                    key={
+                                                        item
+                                                    }
+                                                    value={
+                                                        item
+                                                    }
                                                 >
                                                     {formatStatus(
                                                         item,
@@ -792,9 +1204,11 @@ export default function UserManagement({
 
                                 <Select
                                     value={role}
-                                    onValueChange={setRole}
+                                    onValueChange={
+                                        setRole
+                                    }
                                 >
-                                    <SelectTrigger className="h-10 w-[135px] rounded-lg border-slate-200 bg-white text-sm shadow-none">
+                                    <SelectTrigger className="h-10 w-[145px] rounded-lg border-slate-200 bg-white text-sm shadow-none">
                                         <SelectValue placeholder="Role" />
                                     </SelectTrigger>
 
@@ -804,10 +1218,16 @@ export default function UserManagement({
                                         </SelectItem>
 
                                         {roleOptions.map(
-                                            (item) => (
+                                            (
+                                                item,
+                                            ) => (
                                                 <SelectItem
-                                                    key={item}
-                                                    value={item}
+                                                    key={
+                                                        item
+                                                    }
+                                                    value={
+                                                        item
+                                                    }
                                                 >
                                                     {formatRole(
                                                         item,
@@ -837,12 +1257,29 @@ export default function UserManagement({
                                             All organizations
                                         </SelectItem>
 
-                                        {organizationOptions.map((org) => (
-                                <SelectItem key={org.id} value={String(org.id)}>
-                                    {org.code} — {org.name}
-                                </SelectItem>
-                            ))}
-                            </SelectContent>
+                                        {organizationOptions.map(
+                                            (
+                                                org,
+                                            ) => (
+                                                <SelectItem
+                                                    key={
+                                                        org.id
+                                                    }
+                                                    value={String(
+                                                        org.id,
+                                                    )}
+                                                >
+                                                    {
+                                                        org.code
+                                                    }{' '}
+                                                    —{' '}
+                                                    {
+                                                        org.name
+                                                    }
+                                                </SelectItem>
+                                            ),
+                                        )}
+                                    </SelectContent>
                                 </Select>
 
                                 {/* Clear */}
@@ -877,9 +1314,10 @@ export default function UserManagement({
 
                             <div className="text-sm text-slate-400">
                                 <span className="font-semibold text-slate-700">
-                                    {filteredCount}
+                                    {total}
                                 </span>{' '}
-                                {filteredCount === 1
+                                {total ===
+                                1
                                     ? 'user'
                                     : 'users'}
                             </div>
@@ -932,10 +1370,26 @@ export default function UserManagement({
                                 </TableHeader>
 
                                 <TableBody>
-                                    {table
+                                    {isLoading ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={
+                                                    columns.length
+                                                }
+                                                className="h-48 text-center"
+                                            >
+                                                <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+
+                                                    Loading users...
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : table
                                         .getRowModel()
-                                        .rows.length >
-                                    0 ? (
+                                        .rows
+                                        .length >
+                                      0 ? (
                                         table
                                             .getRowModel()
                                             .rows
@@ -988,8 +1442,7 @@ export default function UserManagement({
                                                     </div>
 
                                                     <p className="text-sm font-medium text-slate-700">
-                                                        No users
-                                                        found
+                                                        No users found
                                                     </p>
 
                                                     <p className="mt-1 text-xs text-slate-400">
@@ -1007,51 +1460,44 @@ export default function UserManagement({
 
                         {/* Pagination */}
 
-                        {filteredCount > 0 && (
+                        {total >
+                            0 && (
                             <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+
                                 <p className="text-xs text-slate-400">
                                     Showing{' '}
                                     <span className="font-medium text-slate-600">
-                                        {table.getState()
-                                            .pagination
-                                            .pageIndex *
-                                            table.getState()
-                                                .pagination
-                                                .pageSize +
-                                            1}
+                                        {from}
                                     </span>{' '}
                                     to{' '}
                                     <span className="font-medium text-slate-600">
-                                        {Math.min(
-                                            (table.getState()
-                                                .pagination
-                                                .pageIndex +
-                                                1) *
-                                                table.getState()
-                                                    .pagination
-                                                    .pageSize,
-                                            filteredCount,
-                                        )}
+                                        {to}
                                     </span>{' '}
                                     of{' '}
                                     <span className="font-medium text-slate-600">
-                                        {filteredCount}
+                                        {total}
                                     </span>{' '}
                                     users
                                 </p>
 
                                 <div className="flex items-center gap-1">
+
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="icon"
                                         disabled={
-                                            !table.getCanPreviousPage()
+                                            !previousUrl ||
+                                            isLoading
                                         }
                                         onClick={() =>
-                                            table.previousPage()
+                                            goToPage(
+                                                currentPage -
+                                                    1,
+                                            )
                                         }
                                         className="h-8 w-8 rounded-md border-slate-200"
+                                        aria-label="Previous page"
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </Button>
@@ -1061,7 +1507,10 @@ export default function UserManagement({
                                     </div>
 
                                     <span className="px-1 text-xs text-slate-400">
-                                        of {pageCount}
+                                        of{' '}
+                                        {
+                                            lastPage
+                                        }
                                     </span>
 
                                     <Button
@@ -1069,12 +1518,17 @@ export default function UserManagement({
                                         variant="outline"
                                         size="icon"
                                         disabled={
-                                            !table.getCanNextPage()
+                                            !nextUrl ||
+                                            isLoading
                                         }
                                         onClick={() =>
-                                            table.nextPage()
+                                            goToPage(
+                                                currentPage +
+                                                    1,
+                                            )
                                         }
                                         className="h-8 w-8 rounded-md border-slate-200"
+                                        aria-label="Next page"
                                     >
                                         <ChevronRight className="h-4 w-4" />
                                     </Button>

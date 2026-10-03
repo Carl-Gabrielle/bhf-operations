@@ -22,32 +22,181 @@ class UserController extends Controller
      * Display all users.
      */
     public function index(Request $request): Response
-    {
-        $users = User::query()
-            ->with([
-                'organizationalUnit:id,code,name',
-                'position:id,name',
-                'roles:id,name',
-            ])
-            ->when(
-                $request->filled('search'),
-                function ($query) use ($request) {
-                    $search = $request->string('search')->toString();
+{
+    $allowedSorts = [
+        'name',
+        'username',
+        'employee_number',
+        'account_status',
+        'created_at',
+    ];
 
-                    $query->where(function ($query) use ($search) {
-                        $query
-                            ->where('username', 'like', "%{$search}%")
-                            ->orWhere('employee_number', 'like', "%{$search}%")
-                            ->orWhere('name', 'like', "%{$search}%")
-                            ->orWhere('email', 'like', "%{$search}%");
-                    });
+    $sort = $request->string('sort')->toString();
+
+    $sort = in_array($sort, $allowedSorts, true)
+        ? $sort
+        : 'created_at';
+
+    $direction = $request->string('direction')->toString();
+
+    $direction = in_array($direction, ['asc', 'desc'], true)
+        ? $direction
+        : 'desc';
+
+    $users = User::query()
+        ->with([
+            'organizationalUnit:id,code,name',
+            'position:id,name',
+            'roles:id,name',
+        ])
+
+        /*
+        |--------------------------------------------------------------------------
+        | Search
+        |--------------------------------------------------------------------------
+        */
+
+        ->when(
+            $request->filled('search'),
+            function ($query) use ($request) {
+                $search = $request
+                    ->string('search')
+                    ->trim()
+                    ->toString();
+
+                $query->where(function ($query) use ($search) {
+                    $query
+                        ->where(
+                            'username',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'employee_number',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'name',
+                            'like',
+                            "%{$search}%"
+                        )
+                        ->orWhere(
+                            'email',
+                            'like',
+                            "%{$search}%"
+                        );
+                });
+            }
+        )
+
+        /*
+        |--------------------------------------------------------------------------
+        | Status
+        |--------------------------------------------------------------------------
+        */
+
+        ->when(
+            $request->filled('status'),
+            function ($query) use ($request) {
+                $status = $request
+                    ->string('status')
+                    ->toString();
+
+                if ($status !== 'all') {
+                    $query->where(
+                        'account_status',
+                        $status
+                    );
                 }
-            )
-            ->orderByDesc('created_at')
-            ->paginate(10)
-            ->withQueryString();
+            }
+        )
 
-        $organizationalUnits = OrganizationalUnit::query()
+        /*
+        |--------------------------------------------------------------------------
+        | Role
+        |--------------------------------------------------------------------------
+        */
+
+        ->when(
+            $request->filled('role'),
+            function ($query) use ($request) {
+                $role = $request
+                    ->string('role')
+                    ->toString();
+
+                if ($role !== 'all') {
+                    $query->whereHas(
+                        'roles',
+                        function ($query) use ($role) {
+                            $query->where(
+                                'name',
+                                $role
+                            );
+                        }
+                    );
+                }
+            }
+        )
+
+        /*
+        |--------------------------------------------------------------------------
+        | Organization
+        |--------------------------------------------------------------------------
+        */
+
+        ->when(
+            $request->filled('organization'),
+            function ($query) use ($request) {
+                $organization = $request
+                    ->integer('organization');
+
+                if ($organization > 0) {
+                    $query->where(
+                        'organizational_unit_id',
+                        $organization
+                    );
+                }
+            }
+        )
+
+        /*
+        |--------------------------------------------------------------------------
+        | Sorting
+        |--------------------------------------------------------------------------
+        */
+
+        ->orderBy(
+            $sort,
+            $direction
+        )
+
+        /*
+        |--------------------------------------------------------------------------
+        | Stable secondary sort
+        |--------------------------------------------------------------------------
+        */
+
+        ->orderByDesc('id')
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pagination
+        |--------------------------------------------------------------------------
+        */
+
+        ->paginate(10)
+
+        ->withQueryString();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Organizational Units
+    |--------------------------------------------------------------------------
+    */
+
+    $organizationalUnits =
+        OrganizationalUnit::query()
             ->orderBy('code')
             ->get([
                 'id',
@@ -55,19 +204,47 @@ class UserController extends Controller
                 'name',
             ]);
 
-        return Inertia::render('Admin/Users/Index', [
-            'users' => UserResource::collection($users),
+    return Inertia::render(
+        'Admin/Users/Index',
+        [
+            'users' =>
+                UserResource::collection(
+                    $users
+                ),
 
-            'organizationalUnits' => $organizationalUnits,
+            'organizationalUnits' =>
+                $organizationalUnits,
 
             'filters' => [
-                'search' => $request
-                    ->string('search')
-                    ->toString(),
-            ],
-        ]);
-    }
+                'search' =>
+                    $request
+                        ->string('search')
+                        ->toString(),
 
+                'status' =>
+                    $request
+                        ->string('status')
+                        ->toString(),
+
+                'role' =>
+                    $request
+                        ->string('role')
+                        ->toString(),
+
+                'organization' =>
+                    $request
+                        ->string('organization')
+                        ->toString(),
+
+                'sort' =>
+                    $sort,
+
+                'direction' =>
+                    $direction,
+            ],
+        ]
+    );
+}
     /**
      * Display a specific user.
      */

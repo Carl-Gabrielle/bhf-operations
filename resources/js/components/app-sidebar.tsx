@@ -248,14 +248,26 @@ export function AppSidebar() {
     |--------------------------------------------------------------------------
     */
 
-    const visibleNavItems =
-        mainNavItems.filter((item) =>
-            hasPermission(
-                permissions,
-                item.permission,
-            ),
-        );
+   const isAdmin =
+    user.roles?.some(
+        (role: string) => role.toLowerCase() === 'admin',
+    ) ?? false;
 
+const visibleNavItems =
+    mainNavItems.filter((item) => {
+        // Admin does not need Requests
+        if (
+            isAdmin &&
+            item.section === 'requests'
+        ) {
+            return false;
+        }
+
+        return hasPermission(
+            permissions,
+            item.permission,
+        );
+    });
     /*
     |--------------------------------------------------------------------------
     | Render Sidebar
