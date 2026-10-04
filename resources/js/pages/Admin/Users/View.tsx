@@ -73,6 +73,12 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+
 
 /*
 |--------------------------------------------------------------------------
@@ -444,6 +450,28 @@ export default function ViewUser() {
 
     /*
     |--------------------------------------------------------------------------
+    | Open Reporting Manager Assignment
+    |--------------------------------------------------------------------------
+    | Guide administrators directly to the reporting structure editor.
+    |--------------------------------------------------------------------------
+    */
+
+    const openReportingManagerAssignment = () => {
+        setEditing(true);
+
+        window.setTimeout(() => {
+            document
+                .getElementById('reporting-structure')
+                ?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                });
+        }, 50);
+    };
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Submit Edit
     |--------------------------------------------------------------------------
     */
@@ -472,12 +500,78 @@ export default function ViewUser() {
                     form.clearErrors();
                     setLocalSuccess('User account updated successfully.');
                     setFlashVisible(true);
-                    setFlashVisible(true);
                 },
 
                 onError: () => {
                     setLocalError('Unable to update the user account. Please review the highlighted fields.');
                     setFlashVisible(true);
+                },
+            },
+        );
+    };
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assign Reporting Manager Directly from View
+    |--------------------------------------------------------------------------
+    |
+    | Administrators can assign the reporting manager without entering
+    | Edit User mode. The existing update endpoint is used so the same
+    | server-side authorization and validation remain in one place.
+    |
+    */
+
+    const submitReportingManagerAssignment = () => {
+        const managerId =
+            form.data.reports_to_user_id;
+
+        if (
+            form.processing ||
+            !managerId
+        ) {
+            return;
+        }
+
+        setLocalSuccess(null);
+        setLocalError(null);
+        setFlashVisible(false);
+
+        // `transform()` mutates the form configuration and does not
+        // return the form instance. Apply it first, then call `put()`.
+        form.transform((data) => ({
+            ...data,
+
+            // Preserve the user's current reporting-manager eligibility
+            // flag because the existing update endpoint validates this
+            // field as part of the complete user update payload.
+            can_be_reporting_manager:
+                Boolean(
+                    (user as typeof user & {
+                        can_be_reporting_manager?: boolean;
+                    })
+                        .can_be_reporting_manager,
+                ),
+        }));
+
+        form.put(
+            `/admin/users/${user.id}`,
+            {
+                preserveScroll: true,
+
+                onSuccess: () => {
+                    setManagerSelectorOpen(false);
+                    form.clearErrors();
+                    setLocalSuccess(
+                        'Reporting manager assigned successfully.',
+                    );
+                    setFlashVisible(true);
+                },
+
+                onError: () => {
+                    setLocalError(
+                        'Unable to assign the reporting manager. Please select an eligible active manager or head.',
+                    );
                     setFlashVisible(true);
                 },
             },
@@ -919,7 +1013,10 @@ export default function ViewUser() {
                                     REPORTING STRUCTURE
                                 ================================================== */}
 
-                                <section className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]">
+                                <section
+                                    id="reporting-structure"
+                                    className="scroll-mt-6 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.035)]"
+                                >
 
                                     <div className="border-b border-blue-100 bg-blue-50/40 px-5 py-4">
 
@@ -1277,15 +1374,30 @@ export default function ViewUser() {
 
                                             ) : (
 
-                                                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5">
 
-                                                    <p className="text-xs font-semibold text-amber-800">
-                                                        No reporting manager assigned
-                                                    </p>
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-                                                    <p className="mt-1 text-[11px] leading-5 text-amber-700">
-                                                        This employee currently has no manager/head configured for leave approval routing.
-                                                    </p>
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-semibold text-amber-900">
+                                                                No reporting manager assigned
+                                                            </p>
+
+                                                            <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                                                                This employee currently has no manager or department head configured for leave approval routing.
+                                                            </p>
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={openReportingManagerAssignment}
+                                                            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-3.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-[#123052] focus:outline-none focus:ring-2 focus:ring-[#173B67]/20"
+                                                        >
+                                                            <Edit3 className="h-3.5 w-3.5" />
+                                                            Assign Manager / Head
+                                                        </button>
+
+                                                    </div>
 
                                                 </div>
 
@@ -1479,64 +1591,375 @@ export default function ViewUser() {
 
                                             <div>
 
-                                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                                                    Reporting Manager / Head
-                                                </p>
+                                                <div className="mb-2 flex items-center justify-between gap-3">
 
+                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                                                        Reporting Manager / Head
+                                                    </p>
+
+                                                    {currentManager && (
+                                                        <span className="text-[10px] font-medium text-slate-400">
+                                                            Approval routing
+                                                        </span>
+                                                    )}
+
+                                                </div>
 
                                                 {currentManager ? (
 
-                                                    <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                                                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
 
-                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-xs font-bold text-white">
-                                                            {getManagerInitials(
-                                                                currentManager.name,
-                                                            )}
-                                                        </div>
+                                                        <div className="flex items-center gap-3">
 
+                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-xs font-bold text-white">
+                                                                {getManagerInitials(
+                                                                    currentManager.name,
+                                                                )}
+                                                            </div>
 
-                                                        <div className="min-w-0 flex-1">
+                                                            <div className="min-w-0 flex-1">
 
-                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <div className="flex flex-wrap items-center gap-2">
 
-                                                                <p className="truncate text-sm font-semibold text-slate-800">
-                                                                    {
-                                                                        currentManager.name
-                                                                    }
+                                                                    <p className="truncate text-sm font-semibold text-slate-800">
+                                                                        {currentManager.name}
+                                                                    </p>
+
+                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                        <CheckCircle2 className="h-3 w-3" />
+                                                                        Assigned
+                                                                    </span>
+
+                                                                </div>
+
+                                                                <p className="mt-0.5 text-[11px] text-slate-500">
+                                                                    {currentManager.position?.name || 'Manager / Head'}
                                                                 </p>
-
-                                                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">
-                                                                    <CheckCircle2 className="h-3 w-3" />
-                                                                    Assigned
-                                                                </span>
 
                                                             </div>
 
+                                                            <Popover
+                                                                open={managerSelectorOpen}
+                                                                onOpenChange={setManagerSelectorOpen}
+                                                            >
+                                                                <PopoverTrigger asChild>
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={form.processing}
+                                                                        className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-[#173B67] shadow-sm transition hover:border-[#173B67]/30 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                    >
+                                                                        Change
+                                                                    </button>
+                                                                </PopoverTrigger>
 
-                                                            <p className="mt-0.5 text-[11px] text-slate-500">
-                                                                {
-                                                                    currentManager
-                                                                        .position
-                                                                        ?.name ||
-                                                                    'Manager / Head'
-                                                                }
-                                                            </p>
+                                                                <PopoverContent
+                                                                    align="end"
+                                                                    sideOffset={6}
+                                                                    className="w-[min(420px,calc(100vw-3rem))] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-[0_12px_40px_rgba(15,23,42,0.12)]"
+                                                                >
+                                                                    <Command className="bg-white">
+                                                                        <div className="border-b border-slate-100 p-2">
+                                                                            <CommandInput
+                                                                                placeholder="Search manager, employee no., position, or department..."
+                                                                                className="h-10 text-xs"
+                                                                            />
+                                                                        </div>
 
+                                                                        <CommandList className="max-h-72 p-1.5">
+                                                                            <CommandEmpty className="py-8 text-center text-xs text-slate-500">
+                                                                                No eligible managers or heads found.
+                                                                            </CommandEmpty>
+
+                                                                            <CommandGroup heading="Available Managers & Heads">
+                                                                                {managers.map((manager) => {
+                                                                                    const managerId = String(manager.id);
+                                                                                    const isSelected =
+                                                                                        form.data.reports_to_user_id === managerId;
+                                                                                    const position =
+                                                                                        safeString(manager.position?.name) ||
+                                                                                        'Manager / Head';
+                                                                                    const unit =
+                                                                                        safeString(manager.organizational_unit?.name);
+                                                                                    const employeeNumber =
+                                                                                        safeString(manager.employee_number);
+
+                                                                                    return (
+                                                                                        <CommandItem
+                                                                                            key={manager.id}
+                                                                                            value={getManagerSearchValue(manager)}
+                                                                                            onSelect={() => {
+                                                                                                form.setData(
+                                                                                                    'reports_to_user_id',
+                                                                                                    managerId,
+                                                                                                );
+                                                                                                setManagerSelectorOpen(false);
+                                                                                            }}
+                                                                                            className="rounded-lg px-3 py-2.5 data-[selected=true]:bg-slate-50"
+                                                                                        >
+                                                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-[10px] font-bold text-white">
+                                                                                                {getManagerInitials(manager.name)}
+                                                                                            </div>
+
+                                                                                            <div className="ml-3 min-w-0 flex-1">
+                                                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                                                    <p className="truncate text-xs font-semibold text-slate-800">
+                                                                                                        {manager.name}
+                                                                                                    </p>
+
+                                                                                                    {isSelected && (
+                                                                                                        <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                                                            Selected
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </div>
+
+                                                                                                <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                                                                                                    {position}
+                                                                                                    {unit ? ` · ${unit}` : ''}
+                                                                                                </p>
+
+                                                                                                {employeeNumber && (
+                                                                                                    <p className="mt-0.5 truncate font-mono text-[9px] text-slate-400">
+                                                                                                        Employee No. {employeeNumber}
+                                                                                                    </p>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <Check
+                                                                                                className={`ml-3 h-4 w-4 shrink-0 text-[#173B67] ${
+                                                                                                    isSelected
+                                                                                                        ? 'opacity-100'
+                                                                                                        : 'opacity-0'
+                                                                                                }`}
+                                                                                            />
+                                                                                        </CommandItem>
+                                                                                    );
+                                                                                })}
+                                                                            </CommandGroup>
+                                                                        </CommandList>
+                                                                    </Command>
+                                                                </PopoverContent>
+                                                            </Popover>
                                                         </div>
+
+                                                        {String(form.data.reports_to_user_id || '') !==
+                                                            String(currentManager.id) && (
+                                                            <div className="mt-3 flex justify-end border-t border-emerald-200/70 pt-3">
+                                                                {form.processing || !selectedManager ? (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <span className="inline-flex" tabIndex={0}>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={submitReportingManagerAssignment}
+                                                                                    disabled={form.processing || !selectedManager}
+                                                                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-3.5 text-[10px] font-semibold text-white shadow-sm transition hover:bg-[#123052] disabled:cursor-not-allowed disabled:opacity-50"
+                                                                                >
+                                                                                    <Check className="h-3.5 w-3.5" />
+                                                                                    {form.processing ? 'Saving…' : 'Save Assignment'}
+                                                                                </button>
+                                                                            </span>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent side="top" className="max-w-xs text-xs">
+                                                                            {form.processing
+                                                                                ? 'Please wait while the reporting manager assignment is being saved.'
+                                                                                : 'Select an eligible manager or department head first to enable this button.'}
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={submitReportingManagerAssignment}
+                                                                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-3.5 text-[10px] font-semibold text-white shadow-sm transition hover:bg-[#123052]"
+                                                                    >
+                                                                        <Check className="h-3.5 w-3.5" />
+                                                                        Save Assignment
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
 
                                                     </div>
 
                                                 ) : (
 
-                                                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                                    <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5">
 
-                                                        <p className="text-xs font-semibold text-amber-800">
-                                                            No reporting manager assigned
-                                                        </p>
+                                                        <div className="flex flex-col gap-3">
 
-                                                        <p className="mt-1 text-[11px] leading-5 text-amber-700">
-                                                            This employee currently has no manager/head configured for leave approval routing.
-                                                        </p>
+                                                            <div>
+                                                                <p className="text-xs font-semibold text-amber-900">
+                                                                    No reporting manager assigned
+                                                                </p>
+
+                                                                <p className="mt-1 text-[11px] leading-5 text-amber-700">
+                                                                    This employee currently has no manager or department head configured for leave approval routing.
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+
+                                                                <Popover
+                                                                    open={managerSelectorOpen}
+                                                                    onOpenChange={setManagerSelectorOpen}
+                                                                >
+                                                                    <PopoverTrigger asChild>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={form.processing}
+                                                                            className="group flex h-10 min-w-0 flex-1 items-center justify-between rounded-lg border border-amber-300 bg-white px-3 text-left shadow-sm outline-none transition hover:border-[#173B67]/40 focus:ring-2 focus:ring-[#173B67]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            {selectedManager ? (
+                                                                                <div className="flex min-w-0 items-center gap-2.5">
+                                                                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#173B67] text-[9px] font-bold text-white">
+                                                                                        {getManagerInitials(selectedManager.name)}
+                                                                                    </div>
+                                                                                    <div className="min-w-0">
+                                                                                        <p className="truncate text-[11px] font-semibold text-slate-800">
+                                                                                            {selectedManager.name}
+                                                                                        </p>
+                                                                                        <p className="truncate text-[9px] text-slate-500">
+                                                                                            {selectedManager.position?.name || 'Manager / Head'}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="truncate text-[11px] font-medium text-slate-500">
+                                                                                    Select a manager or department head…
+                                                                                </span>
+                                                                            )}
+
+                                                                            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                                                        </button>
+                                                                    </PopoverTrigger>
+
+                                                                    <PopoverContent
+                                                                        align="start"
+                                                                        sideOffset={6}
+                                                                        className="w-[min(420px,calc(100vw-3rem))] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-[0_12px_40px_rgba(15,23,42,0.12)]"
+                                                                    >
+                                                                        <Command className="bg-white">
+                                                                            <div className="border-b border-slate-100 p-2">
+                                                                                <CommandInput
+                                                                                    placeholder="Search manager, employee no., position, or department..."
+                                                                                    className="h-10 text-xs"
+                                                                                />
+                                                                            </div>
+
+                                                                            <CommandList className="max-h-72 p-1.5">
+                                                                                <CommandEmpty className="py-8 text-center text-xs text-slate-500">
+                                                                                    No eligible managers or heads found.
+                                                                                </CommandEmpty>
+                                                                                <CommandGroup heading="Available Managers & Heads">
+                                                                                    {managers.map((manager) => {
+                                                                                        const managerId = String(manager.id);
+                                                                                        const isSelected =
+                                                                                            form.data.reports_to_user_id === managerId;
+                                                                                        const position =
+                                                                                            safeString(manager.position?.name) ||
+                                                                                            'Manager / Head';
+                                                                                        const unit =
+                                                                                            safeString(manager.organizational_unit?.name);
+                                                                                        const employeeNumber =
+                                                                                            safeString(manager.employee_number);
+
+                                                                                        return (
+                                                                                            <CommandItem
+                                                                                                key={manager.id}
+                                                                                                value={getManagerSearchValue(manager)}
+                                                                                                onSelect={() => {
+                                                                                                    form.setData(
+                                                                                                        'reports_to_user_id',
+                                                                                                        managerId,
+                                                                                                    );
+                                                                                                    setManagerSelectorOpen(false);
+                                                                                                }}
+                                                                                                className="rounded-lg px-3 py-2.5 data-[selected=true]:bg-slate-50"
+                                                                                            >
+                                                                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#173B67] text-[10px] font-bold text-white">
+                                                                                                    {getManagerInitials(manager.name)}
+                                                                                                </div>
+
+                                                                                                <div className="ml-3 min-w-0 flex-1">
+                                                                                                    <div className="flex min-w-0 items-center gap-2">
+                                                                                                        <p className="truncate text-xs font-semibold text-slate-800">
+                                                                                                            {manager.name}
+                                                                                                        </p>
+                                                                                                        {isSelected && (
+                                                                                                            <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                                                                Selected
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+
+                                                                                                    <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                                                                                                        {position}
+                                                                                                        {unit ? ` · ${unit}` : ''}
+                                                                                                    </p>
+
+                                                                                                    {employeeNumber && (
+                                                                                                        <p className="mt-0.5 truncate font-mono text-[9px] text-slate-400">
+                                                                                                            Employee No. {employeeNumber}
+                                                                                                        </p>
+                                                                                                    )}
+                                                                                                </div>
+
+                                                                                                <Check
+                                                                                                    className={`ml-3 h-4 w-4 shrink-0 text-[#173B67] ${
+                                                                                                        isSelected
+                                                                                                            ? 'opacity-100'
+                                                                                                            : 'opacity-0'
+                                                                                                    }`}
+                                                                                                />
+                                                                                            </CommandItem>
+                                                                                        );
+                                                                                    })}
+                                                                                </CommandGroup>
+                                                                            </CommandList>
+                                                                        </Command>
+                                                                    </PopoverContent>
+                                                                </Popover>
+
+                                                                {form.processing || !selectedManager ? (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <span className="inline-flex shrink-0" tabIndex={0}>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={submitReportingManagerAssignment}
+                                                                                    disabled={form.processing || !selectedManager}
+                                                                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-4 text-[10px] font-semibold text-white shadow-sm transition hover:bg-[#123052] disabled:cursor-not-allowed disabled:opacity-50"
+                                                                                >
+                                                                                    <Check className="h-3.5 w-3.5" />
+                                                                                    {form.processing ? 'Saving…' : 'Assign Manager'}
+                                                                                </button>
+                                                                            </span>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent side="top" className="max-w-xs text-xs">
+                                                                            {form.processing
+                                                                                ? 'Please wait while the reporting manager assignment is being saved.'
+                                                                                : 'Select an eligible manager or department head first to enable this button.'}
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={submitReportingManagerAssignment}
+                                                                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#173B67] px-4 text-[10px] font-semibold text-white shadow-sm transition hover:bg-[#123052]"
+                                                                    >
+                                                                        <Check className="h-3.5 w-3.5" />
+                                                                        Assign Manager
+                                                                    </button>
+                                                                )}
+
+                                                            </div>
+
+                                                            {errors.reports_to_user_id && (
+                                                                <p className="text-[11px] font-medium text-red-600">
+                                                                    {errors.reports_to_user_id}
+                                                                </p>
+                                                            )}
+
+                                                        </div>
 
                                                     </div>
 
