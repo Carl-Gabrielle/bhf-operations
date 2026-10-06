@@ -1,10 +1,7 @@
 <?php
 
-use App\Http\Controllers\Admin\RolePermissionController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Leave\LeaveApplicationController;
 use App\Http\Controllers\PasswordChangeController;
-use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -13,9 +10,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    return redirect('/login');
-})->name('home');
+Route::redirect('/', '/login')->name('home');
 
 
 /*
@@ -28,33 +23,31 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Forced Password Change
+    | Password Change
     |--------------------------------------------------------------------------
     |
-    | These routes must remain accessible even when the authenticated
-    | user has must_change_password = true.
+    | These routes intentionally remain outside the
+    | force.password.change middleware.
+    |
+    | This allows users who are required to change their password
+    | to access the password change page.
     |
     */
 
-    Route::get('/password/change', [
-        PasswordChangeController::class,
-        'edit',
-    ])->name('password.change');
+    Route::controller(PasswordChangeController::class)->group(function () {
 
-    Route::put('/password/change', [
-        PasswordChangeController::class,
-        'update',
-    ])->name('password.change.update');
+        Route::get('/password/change', 'edit')
+            ->name('password.change');
+
+        Route::put('/password/change', 'update')
+            ->name('password.change.update');
+    });
 
 
     /*
     |--------------------------------------------------------------------------
     | Protected Application Routes
     |--------------------------------------------------------------------------
-    |
-    | All normal application functionality is protected by the
-    | force.password.change middleware.
-    |
     */
 
     Route::middleware('force.password.change')->group(function () {
@@ -65,10 +58,33 @@ Route::middleware('auth')->group(function () {
         |--------------------------------------------------------------------------
         */
 
-        Route::get('/dashboard', [
-            DashboardController::class,
-            'index',
-        ])->name('dashboard');
+        Route::get(
+            '/dashboard',
+            [DashboardController::class, 'index']
+        )->name('dashboard');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Administration
+        |--------------------------------------------------------------------------
+        |
+        | routes/admin.php
+        |
+        | Handles:
+        |
+        | - Users
+        | - Roles
+        | - Permissions
+        |
+        */
+
+        Route::prefix('admin')
+            ->name('admin.')
+            ->group(function () {
+
+                require __DIR__ . '/admin.php';
+            });
 
 
         /*
@@ -76,348 +92,76 @@ Route::middleware('auth')->group(function () {
         | Leave Management
         |--------------------------------------------------------------------------
         |
-        | Employee leave application lifecycle:
+        | routes/leave.php
         |
-        | GET  /leave/applications
-        |      View employee's leave applications
+        | Handles:
         |
-        | GET  /leave/applications/create
-        |      Display leave application form
+        | - Leave applications
+        | - Leave application creation
+        | - Leave application editing
+        | - Leave application viewing
+        | - Leave application downloads
         |
-        | POST /leave/applications
-        |      Submit leave application
-        |
-        | GET  /leave/applications/{leaveApplication}
-        |      View leave application details
-        |
-        |--------------------------------------------------------------------------
         */
 
         Route::prefix('leave')
             ->name('leave.')
             ->group(function () {
 
-                /*
-                |--------------------------------------------------------------------------
-                | Leave Applications
-                |--------------------------------------------------------------------------
-                */
-
-                Route::prefix('applications')
-                    ->name('applications.')
-                    ->group(function () {
-
-                        /*
-                        |------------------------------------------------------------------
-                        | List employee leave applications
-                        |------------------------------------------------------------------
-                        |
-                        | GET /leave/applications
-                        | Route name: leave.applications.index
-                        |
-                        */
-
-                        Route::get('/', [
-                            LeaveApplicationController::class,
-                            'index',
-                        ])
-                            ->middleware('permission:leave.view')
-                            ->name('index');
-
-
-                        /*
-                        |------------------------------------------------------------------
-                        | Create leave application
-                        |------------------------------------------------------------------
-                        |
-                        | GET /leave/applications/create
-                        | Route name: leave.applications.create
-                        |
-                        */
-
-                        Route::get('/create', [
-                            LeaveApplicationController::class,
-                            'create',
-                        ])
-                            ->middleware('permission:leave.create')
-                            ->name('create');
-
-
-                        /*
-                        |------------------------------------------------------------------
-                        | Store leave application
-                        |------------------------------------------------------------------
-                        |
-                        | POST /leave/applications
-                        | Route name: leave.applications.store
-                        |
-                        */
-
-                        Route::post('/', [
-                            LeaveApplicationController::class,
-                            'store',
-                        ])
-                            ->middleware('permission:leave.create')
-                            ->name('store');
-
-
-                        /*
-                        |------------------------------------------------------------------
-                        | Show leave application
-                        |------------------------------------------------------------------
-                        |
-                        | GET /leave/applications/{leaveApplication}
-                        | Route name: leave.applications.show
-                        |
-                        */
-
-                        Route::get('/{leaveApplication}', [
-                            LeaveApplicationController::class,
-                            'show',
-                        ])
-                            ->middleware('permission:leave.view')
-                            ->name('show');
-                    });
+                require __DIR__ . '/leave.php';
             });
 
 
         /*
         |--------------------------------------------------------------------------
-        | Admin / Management Routes
+        | Future Application Modules
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT:
+        | These modules will be extracted one at a time as the application
+        | grows.
         |
-        | We intentionally DO NOT use:
-        |
-        |     role:admin
-        |
-        | Access is controlled through individual permissions.
-        |
-        | This allows different management roles to have different
-        | capabilities.
-        |
-        |--------------------------------------------------------------------------
         */
 
-        Route::prefix('admin')
-            ->name('admin.')
-            ->group(function () {
+        // Route::prefix('approvals')
+        //     ->name('approvals.')
+        //     ->group(function () {
+        //         require __DIR__ . '/approvals.php';
+        //     });
 
-                /*
-                |--------------------------------------------------------------------------
-                | User Management
-                |--------------------------------------------------------------------------
-                */
+        // Route::prefix('employees')
+        //     ->name('employees.')
+        //     ->group(function () {
+        //         require __DIR__ . '/employees.php';
+        //     });
 
-                /*
-                | View users
-                |
-                | GET /admin/users
-                */
+        // Route::prefix('overtime')
+        //     ->name('overtime.')
+        //     ->group(function () {
+        //         require __DIR__ . '/overtime.php';
+        //     });
 
-                Route::get('/users', [
-                    UserController::class,
-                    'index',
-                ])
-                    ->middleware('permission:users.view')
-                    ->name('users.index');
+        // Route::prefix('travel')
+        //     ->name('travel.')
+        //     ->group(function () {
+        //         require __DIR__ . '/travel.php';
+        //     });
 
-
-                /*
-                | Create user form
-                |
-                | GET /admin/users/create
-                */
-
-                Route::get('/users/create', [
-                    UserController::class,
-                    'create',
-                ])
-                    ->middleware('permission:users.create')
-                    ->name('users.create');
-
-
-                /*
-                | Store user
-                |
-                | POST /admin/users
-                */
-
-                Route::post('/users', [
-                    UserController::class,
-                    'store',
-                ])
-                    ->middleware('permission:users.create')
-                    ->name('users.store');
-
-
-                /*
-                | Show user
-                |
-                | GET /admin/users/{user}
-                */
-
-                Route::get('/users/{user}', [
-                    UserController::class,
-                    'show',
-                ])
-                    ->middleware('permission:users.view')
-                    ->name('users.show');
-
-
-                /*
-                | Edit user
-                |
-                | GET /admin/users/{user}/edit
-                */
-
-                Route::get('/users/{user}/edit', [
-                    UserController::class,
-                    'edit',
-                ])
-                    ->middleware('permission:users.edit')
-                    ->name('users.edit');
-
-
-                /*
-                | Update user
-                |
-                | PUT/PATCH /admin/users/{user}
-                */
-
-                Route::match(['put', 'patch'], '/users/{user}', [
-                    UserController::class,
-                    'update',
-                ])
-                    ->middleware('permission:users.edit')
-                    ->name('users.update');
-
-
-                /*
-                | Delete user
-                |
-                | DELETE /admin/users/{user}
-                */
-
-                Route::delete('/users/{user}', [
-                    UserController::class,
-                    'destroy',
-                ])
-                    ->middleware('permission:users.delete')
-                    ->name('users.destroy');
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Reset User Password
-                |--------------------------------------------------------------------------
-                |
-                | Resetting a user's password is intentionally separate
-                | from normal user editing.
-                |
-                */
-
-                Route::post('/users/{user}/reset-password', [
-                    UserController::class,
-                    'resetPassword',
-                ])
-                    ->middleware('permission:users.reset-password')
-                    ->name('users.reset-password');
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Roles & Permissions
-                |--------------------------------------------------------------------------
-                |
-                | Access requires:
-                |
-                |     users.manage-roles
-                |
-                */
-
-                Route::middleware('permission:users.manage-roles')
-                    ->group(function () {
-
-                        /*
-                        |--------------------------------------------------------------
-                        | Roles & Permissions page
-                        |--------------------------------------------------------------
-                        |
-                        | GET /admin/roles
-                        */
-
-                        Route::get('/roles', [
-                            RolePermissionController::class,
-                            'index',
-                        ])->name('roles.index');
-
-
-                        /*
-                        |--------------------------------------------------------------
-                        | Create role
-                        |--------------------------------------------------------------
-                        |
-                        | POST /admin/roles
-                        */
-
-                        Route::post('/roles', [
-                            RolePermissionController::class,
-                            'store',
-                        ])->name('roles.store');
-
-
-                        /*
-                        |--------------------------------------------------------------
-                        | Update role
-                        |--------------------------------------------------------------
-                        |
-                        | PUT /admin/roles/{role}
-                        */
-
-                        Route::put('/roles/{role}', [
-                            RolePermissionController::class,
-                            'update',
-                        ])->name('roles.update');
-
-
-                        /*
-                        |--------------------------------------------------------------
-                        | Delete role
-                        |--------------------------------------------------------------
-                        |
-                        | DELETE /admin/roles/{role}
-                        */
-
-                        Route::delete('/roles/{role}', [
-                            RolePermissionController::class,
-                            'destroy',
-                        ])->name('roles.destroy');
-
-
-                        /*
-                        |--------------------------------------------------------------
-                        | Update role permissions
-                        |--------------------------------------------------------------
-                        |
-                        | PUT /admin/roles/{role}/permissions
-                        */
-
-                        Route::put('/roles/{role}/permissions', [
-                            RolePermissionController::class,
-                            'updatePermissions',
-                        ])->name('roles.permissions.update');
-                    });
-            });
+        // Route::prefix('reports')
+        //     ->name('reports.')
+        //     ->group(function () {
+        //         require __DIR__ . '/reports.php';
+        //     });
     });
 });
 
 
 /*
 |--------------------------------------------------------------------------
-| Settings Routes
+| Settings
 |--------------------------------------------------------------------------
+|
+| Settings routes remain separated from the application modules.
+|
 */
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';

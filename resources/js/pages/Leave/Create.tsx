@@ -10,6 +10,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
     CalendarDays,
+    Check,
     CheckCircle2,
     Clock3,
     FileText,
@@ -137,6 +138,72 @@ export default function Create({
 
     /*
     |--------------------------------------------------------------------------
+    | Display Date
+    |--------------------------------------------------------------------------
+    */
+
+    const formatDisplayDate = (
+        date: string,
+    ): string => {
+        if (!date) {
+            return 'Not selected';
+        }
+
+        const parsedDate = new Date(
+            `${date}T00:00:00`,
+        );
+
+        if (Number.isNaN(parsedDate.getTime())) {
+            return 'Not selected';
+        }
+
+        return new Intl.DateTimeFormat(
+            'en-US',
+            {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+            },
+        )
+            .format(parsedDate)
+            .replace(
+                /^([A-Za-z]{3}) /,
+                '$1. ',
+            );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Duration Label
+    |--------------------------------------------------------------------------
+    */
+
+    const durationUnit =
+        totalDays === 0.5 || totalDays === 1
+            ? 'day'
+            : 'days';
+
+    /*
+    |--------------------------------------------------------------------------
+    | Schedule Label
+    |--------------------------------------------------------------------------
+    */
+
+    const scheduleLabel = useMemo(() => {
+        switch (form.data.schedule_type) {
+            case 'half_day_am':
+                return 'Half Day AM';
+
+            case 'half_day_pm':
+                return 'Half Day PM';
+
+            default:
+                return 'Full Day';
+        }
+    }, [form.data.schedule_type]);
+
+    /*
+    |--------------------------------------------------------------------------
     | Submit
     |--------------------------------------------------------------------------
     */
@@ -152,7 +219,7 @@ export default function Create({
 
     /*
     |--------------------------------------------------------------------------
-    | File Change
+    | Attachment
     |--------------------------------------------------------------------------
     */
 
@@ -169,799 +236,736 @@ export default function Create({
         <>
             <Head title="Apply for Leave" />
 
-            <div className="min-h-full bg-slate-50/70">
-                <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="min-h-screen bg-[#f7f9fc]">
+                <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
 
-                    {/* ------------------------------------------------------ */}
-                    {/* Header                                                   */}
-                    {/* ------------------------------------------------------ */}
+                    {/* ======================================================
+                        PAGE HEADER
+                    ====================================================== */}
 
-                    <div className="mb-6">
+                    <div className="mb-7">
                         <Link
                             href="/leave/applications"
-                            className="
-                                mb-4
-                                inline-flex
-                                items-center
-                                gap-2
-                                text-sm
-                                font-medium
-                                text-slate-500
-                                transition-colors
-                                hover:text-[#28658F]
-                            "
+                            className="group mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-[#28658F]"
                         >
-                            <ArrowLeft className="h-4 w-4" />
+                            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
                             Back to Leave Applications
                         </Link>
 
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                            <div>
-                                <div className="mb-2 flex items-center gap-2">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#4389BC]/10">
+                        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+                            {/* subtle brand accent */}
+                            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#28658F] via-[#4389BC] to-[#75AFCF]" />
+
+                            <div className="flex flex-col gap-6 p-6 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex min-w-0 items-start gap-4">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#4389BC]/10 ring-1 ring-[#4389BC]/10">
                                         <CalendarDays className="h-5 w-5 text-[#4389BC]" />
                                     </div>
 
-                                    <span className="text-sm font-semibold uppercase tracking-wider text-[#4389BC]">
-                                        Leave Management
-                                    </span>
+                                    <div className="min-w-0">
+                                        <div className="mb-1 flex items-center gap-2">
+                                            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#4389BC]">
+                                                Leave Management
+                                            </span>
+
+                                            <span className="h-1 w-1 rounded-full bg-slate-300" />
+
+                                            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                                                Employee Services
+                                            </span>
+                                        </div>
+
+                                        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+                                            Apply for Leave
+                                        </h1>
+
+                                        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
+                                            Submit a leave request for review
+                                            and approval by your assigned
+                                            approver.
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                                    Apply for Leave
-                                </h1>
+                                <div className="flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+                                    <Clock3 className="h-3.5 w-3.5 text-slate-400" />
 
-                                <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                                    Submit your leave request for review and approval.
-                                </p>
-                            </div>
-
-                            <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 shadow-sm sm:flex">
-                                <Clock3 className="h-3.5 w-3.5" />
-                                Leave Request
+                                    <span className="text-xs font-semibold text-slate-600">
+                                        New Request
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* ------------------------------------------------------ */}
-                    {/* Main Layout                                              */}
-                    {/* ------------------------------------------------------ */}
+                    {/* ======================================================
+                        FORM
+                    ====================================================== */}
 
                     <form onSubmit={submit}>
-                        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                        <div className="space-y-5">
 
-                            {/* ================================================= */}
-                            {/* LEFT - FORM                                       */}
-                            {/* ================================================= */}
+                            {/* ==================================================
+                                EMPLOYEE INFORMATION
+                            ================================================== */}
 
-                            <div className="space-y-6">
+                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
+                                <SectionHeader
+                                    icon={
+                                        <UserRound className="h-4 w-4 text-[#4389BC]" />
+                                    }
+                                    title="Employee Information"
+                                    description="Information associated with your employee account"
+                                />
 
-                                {/* --------------------------------------------- */}
-                                {/* Employee Information                          */}
-                                {/* --------------------------------------------- */}
+                                <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4 lg:p-6">
+                                    <InfoField
+                                        label="Employee Name"
+                                        value={employee.name}
+                                    />
 
-                                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                    <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-                                                <UserRound className="h-4 w-4 text-slate-600" />
-                                            </div>
+                                    <InfoField
+                                        label="Employee Number"
+                                        value={
+                                            employee.employee_number ??
+                                            '—'
+                                        }
+                                    />
 
-                                            <div>
-                                                <h2 className="text-sm font-semibold text-slate-900">
-                                                    Employee Information
-                                                </h2>
+                                    <InfoField
+                                        label="Department / Unit"
+                                        value={
+                                            employee.organizational_unit ??
+                                            '—'
+                                        }
+                                    />
 
-                                                <p className="text-xs text-slate-500">
-                                                    Your employee information
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <InfoField
+                                        label="Position"
+                                        value={
+                                            employee.position ??
+                                            '—'
+                                        }
+                                    />
 
-                                    <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+                                    <div className="sm:col-span-2 lg:col-span-4">
                                         <InfoField
-                                            label="Employee Name"
-                                            value={employee.name}
-                                        />
-
-                                        <InfoField
-                                            label="Employee Number"
+                                            label="Reporting Manager / Head"
                                             value={
-                                                employee.employee_number ??
-                                                '—'
+                                                employee.manager ??
+                                                'Not assigned'
+                                            }
+                                            emphasized={
+                                                !!employee.manager
                                             }
                                         />
+                                    </div>
+                                </div>
+                            </section>
 
-                                        <InfoField
-                                            label="Department / Unit"
+                            {/* ==================================================
+                                LEAVE DETAILS
+                            ================================================== */}
+
+                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
+                                <SectionHeader
+                                    icon={
+                                        <FileText className="h-4 w-4 text-[#4389BC]" />
+                                    }
+                                    title="Leave Request"
+                                    description="Provide the details required to process your request"
+                                />
+
+                                <div className="space-y-7 p-5 sm:p-6 lg:p-7">
+
+                                    {/* Leave Type */}
+
+                                    <div className="space-y-2.5">
+                                        <FieldLabel
+                                            htmlFor="leave_type_id"
+                                            required
+                                        >
+                                            Leave Type
+                                        </FieldLabel>
+
+                                        <select
+                                            id="leave_type_id"
                                             value={
-                                                employee.organizational_unit ??
-                                                '—'
+                                                form.data.leave_type_id
                                             }
-                                        />
-
-                                        <InfoField
-                                            label="Position"
-                                            value={
-                                                employee.position ??
-                                                '—'
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'leave_type_id',
+                                                    event.target.value,
+                                                )
                                             }
-                                        />
-
-                                        <div className="sm:col-span-2">
-                                            <InfoField
-                                                label="Reporting Manager / Head"
-                                                value={
-                                                    employee.manager ??
-                                                    'Not assigned'
+                                            className={`
+                                                flex h-11 w-full
+                                                rounded-lg border
+                                                bg-white px-3.5
+                                                text-sm text-slate-900
+                                                shadow-sm outline-none
+                                                transition
+                                                hover:border-slate-300
+                                                focus:border-[#4389BC]
+                                                focus:ring-4
+                                                focus:ring-[#4389BC]/10
+                                                ${
+                                                    form.errors
+                                                        .leave_type_id
+                                                        ? 'border-red-300'
+                                                        : 'border-slate-200'
                                                 }
-                                            />
-                                        </div>
-                                    </div>
-                                </section>
+                                            `}
+                                        >
+                                            <option value="">
+                                                Select a leave type
+                                            </option>
 
-                                {/* --------------------------------------------- */}
-                                {/* Leave Details                                 */}
-                                {/* --------------------------------------------- */}
+                                            {leaveTypes.map(
+                                                (leaveType) => (
+                                                    <option
+                                                        key={
+                                                            leaveType.id
+                                                        }
+                                                        value={
+                                                            leaveType.id
+                                                        }
+                                                    >
+                                                        {leaveType.name}
+                                                        {leaveType.is_paid
+                                                            ? ' — Paid'
+                                                            : ' — Unpaid'}
+                                                    </option>
+                                                ),
+                                            )}
+                                        </select>
 
-                                <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                    <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
-                                                <FileText className="h-4 w-4 text-[#4389BC]" />
-                                            </div>
-
-                                            <div>
-                                                <h2 className="text-sm font-semibold text-slate-900">
-                                                    Leave Details
-                                                </h2>
-
-                                                <p className="text-xs text-slate-500">
-                                                    Provide the details of your leave request
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-6 p-5 sm:p-6">
-
-                                        {/* Leave Type */}
-
-                                        <div className="space-y-2">
-                                            <label
-                                                htmlFor="leave_type_id"
-                                                className="text-sm font-medium text-slate-800"
-                                            >
-                                                Leave Type
-                                                <span className="ml-1 text-red-500">
-                                                    *
-                                                </span>
-                                            </label>
-
-                                            <select
-                                                id="leave_type_id"
-                                                value={
-                                                    form.data.leave_type_id
+                                        {form.errors.leave_type_id && (
+                                            <ErrorMessage>
+                                                {
+                                                    form.errors
+                                                        .leave_type_id
                                                 }
-                                                onChange={(event) =>
-                                                    form.setData(
-                                                        'leave_type_id',
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                className={`
-                                                    flex
-                                                    h-11
-                                                    w-full
-                                                    rounded-lg
-                                                    border
-                                                    bg-white
-                                                    px-3
-                                                    text-sm
-                                                    text-slate-900
-                                                    outline-none
-                                                    transition
-                                                    focus:border-[#4389BC]
-                                                    focus:ring-2
-                                                    focus:ring-[#4389BC]/15
-                                                    ${
-                                                        form.errors
-                                                            .leave_type_id
-                                                            ? 'border-red-300'
-                                                            : 'border-slate-200'
-                                                    }
-                                                `}
-                                            >
-                                                <option value="">
-                                                    Select a leave type
-                                                </option>
-
-                                                {leaveTypes.map(
-                                                    (leaveType) => (
-                                                        <option
-                                                            key={
-                                                                leaveType.id
-                                                            }
-                                                            value={
-                                                                leaveType.id
-                                                            }
-                                                        >
-                                                            {leaveType.name}
-                                                            {leaveType.is_paid
-                                                                ? ' — Paid'
-                                                                : ' — Unpaid'}
-                                                        </option>
-                                                    ),
-                                                )}
-                                            </select>
-
-                                            {form.errors.leave_type_id && (
-                                                <ErrorMessage>
-                                                    {
-                                                        form.errors
-                                                            .leave_type_id
-                                                    }
-                                                </ErrorMessage>
-                                            )}
-
-                                            {selectedLeaveType?.description && (
-                                                <div className="flex gap-2 rounded-lg bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
-                                                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-
-                                                    <span>
-                                                        {
-                                                            selectedLeaveType.description
-                                                        }
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Dates */}
-
-                                        <div className="grid gap-5 sm:grid-cols-2">
-
-                                            <div className="space-y-2">
-                                                <label
-                                                    htmlFor="start_date"
-                                                    className="text-sm font-medium text-slate-800"
-                                                >
-                                                    Start Date
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <Input
-                                                    id="start_date"
-                                                    type="date"
-                                                    value={
-                                                        form.data.start_date
-                                                    }
-                                                    onChange={(event) =>
-                                                        form.setData(
-                                                            'start_date',
-                                                            event.target.value,
-                                                        )
-                                                    }
-                                                    className={`
-                                                        h-11
-                                                        ${
-                                                            form.errors
-                                                                .start_date
-                                                                ? 'border-red-300'
-                                                                : ''
-                                                        }
-                                                    `}
-                                                />
-
-                                                {form.errors.start_date && (
-                                                    <ErrorMessage>
-                                                        {
-                                                            form.errors
-                                                                .start_date
-                                                        }
-                                                    </ErrorMessage>
-                                                )}
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <label
-                                                    htmlFor="end_date"
-                                                    className="text-sm font-medium text-slate-800"
-                                                >
-                                                    End Date
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <Input
-                                                    id="end_date"
-                                                    type="date"
-                                                    min={
-                                                        form.data.start_date ||
-                                                        undefined
-                                                    }
-                                                    value={
-                                                        form.data.end_date
-                                                    }
-                                                    onChange={(event) =>
-                                                        form.setData(
-                                                            'end_date',
-                                                            event.target.value,
-                                                        )
-                                                    }
-                                                    className={`
-                                                        h-11
-                                                        ${
-                                                            form.errors
-                                                                .end_date
-                                                                ? 'border-red-300'
-                                                                : ''
-                                                        }
-                                                    `}
-                                                />
-
-                                                {form.errors.end_date && (
-                                                    <ErrorMessage>
-                                                        {
-                                                            form.errors
-                                                                .end_date
-                                                        }
-                                                    </ErrorMessage>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Total Days */}
-
-                                        <div className="rounded-xl border border-[#4389BC]/15 bg-[#4389BC]/5 p-4">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wider text-[#4389BC]">
-                                                        Total Leave
-                                                    </p>
-
-                                                    <p className="mt-1 text-sm text-slate-600">
-                                                        Based on your selected dates
-                                                    </p>
-                                                </div>
-
-                                                <div className="text-right">
-                                                    <span className="text-2xl font-bold text-slate-900">
-                                                        {totalDays}
-                                                    </span>
-
-                                                    <span className="ml-1 text-sm text-slate-500">
-                                                        day
-                                                        {totalDays !== 1
-                                                            ? 's'
-                                                            : ''}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Schedule */}
-
-                                        <div className="space-y-3">
-                                            <label className="text-sm font-medium text-slate-800">
-                                                Schedule
-                                                <span className="ml-1 text-red-500">
-                                                    *
-                                                </span>
-                                            </label>
-
-                                            <div className="grid gap-3 sm:grid-cols-3">
-
-                                                <ScheduleOption
-                                                    value="full_day"
-                                                    label="Full Day"
-                                                    description="Whole day"
-                                                    selected={
-                                                        form.data
-                                                            .schedule_type ===
-                                                        'full_day'
-                                                    }
-                                                    onClick={() =>
-                                                        form.setData(
-                                                            'schedule_type',
-                                                            'full_day',
-                                                        )
-                                                    }
-                                                />
-
-                                                <ScheduleOption
-                                                    value="half_day_am"
-                                                    label="Half Day AM"
-                                                    description="Morning"
-                                                    selected={
-                                                        form.data
-                                                            .schedule_type ===
-                                                        'half_day_am'
-                                                    }
-                                                    onClick={() =>
-                                                        form.setData(
-                                                            'schedule_type',
-                                                            'half_day_am',
-                                                        )
-                                                    }
-                                                />
-
-                                                <ScheduleOption
-                                                    value="half_day_pm"
-                                                    label="Half Day PM"
-                                                    description="Afternoon"
-                                                    selected={
-                                                        form.data
-                                                            .schedule_type ===
-                                                        'half_day_pm'
-                                                    }
-                                                    onClick={() =>
-                                                        form.setData(
-                                                            'schedule_type',
-                                                            'half_day_pm',
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-
-                                            {form.errors.schedule_type && (
-                                                <ErrorMessage>
-                                                    {
-                                                        form.errors
-                                                            .schedule_type
-                                                    }
-                                                </ErrorMessage>
-                                            )}
-                                        </div>
-
-                                        {/* Reason */}
-
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <label
-                                                    htmlFor="reason"
-                                                    className="text-sm font-medium text-slate-800"
-                                                >
-                                                    Reason
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <span className="text-xs text-slate-400">
-                                                    {form.data.reason.length}
-                                                    /2000
-                                                </span>
-                                            </div>
-
-                                            <Textarea
-                                                id="reason"
-                                                value={
-                                                    form.data.reason
-                                                }
-                                                onChange={(
-                                                    event: ChangeEvent<HTMLTextAreaElement>,
-                                                ) =>
-                                                    form.setData(
-                                                        'reason',
-                                                        event.target.value,
-                                                    )
-                                                }
-                                                placeholder="Please provide a brief explanation for your leave request..."
-                                                maxLength={2000}
-                                                rows={5}
-                                                className={`
-                                                    resize-none
-                                                    ${
-                                                        form.errors.reason
-                                                            ? 'border-red-300'
-                                                            : ''
-                                                    }
-                                                `}
-                                            />
-
-                                            {form.errors.reason && (
-                                                <ErrorMessage>
-                                                    {
-                                                        form.errors.reason
-                                                    }
-                                                </ErrorMessage>
-                                            )}
-                                        </div>
-
-                                        {/* Attachment */}
-
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <label
-                                                    htmlFor="attachment"
-                                                    className="text-sm font-medium text-slate-800"
-                                                >
-                                                    Supporting Document
-
-                                                    {selectedLeaveType?.requires_attachment && (
-                                                        <span className="ml-1 text-red-500">
-                                                            *
-                                                        </span>
-                                                    )}
-                                                </label>
-
-                                                <span className="text-xs text-slate-400">
-                                                    Max 5 MB
-                                                </span>
-                                            </div>
-
-                                            <label
-                                                htmlFor="attachment"
-                                                className={`
-                                                    flex
-                                                    cursor-pointer
-                                                    flex-col
-                                                    items-center
-                                                    justify-center
-                                                    rounded-xl
-                                                    border
-                                                    border-dashed
-                                                    px-5
-                                                    py-8
-                                                    text-center
-                                                    transition-colors
-                                                    ${
-                                                        form.data.attachment
-                                                            ? 'border-[#4389BC]/40 bg-[#4389BC]/5'
-                                                            : 'border-slate-300 bg-slate-50/50 hover:border-[#4389BC]/50 hover:bg-[#4389BC]/5'
-                                                    }
-                                                `}
-                                            >
-                                                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
-                                                    <Paperclip className="h-4 w-4 text-slate-500" />
-                                                </div>
-
-                                                {form.data.attachment ? (
-                                                    <>
-                                                        <p className="text-sm font-medium text-slate-800">
-                                                            {
-                                                                form.data
-                                                                    .attachment
-                                                                    .name
-                                                            }
-                                                        </p>
-
-                                                        <p className="mt-1 text-xs text-slate-500">
-                                                            Click to replace
-                                                            the file
-                                                        </p>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <p className="text-sm font-medium text-slate-700">
-                                                            Upload a supporting document
-                                                        </p>
-
-                                                        <p className="mt-1 text-xs text-slate-500">
-                                                            PDF, JPG, JPEG,
-                                                            PNG or other
-                                                            supported files
-                                                        </p>
-                                                    </>
-                                                )}
-
-                                                <input
-                                                    id="attachment"
-                                                    type="file"
-                                                    className="hidden"
-                                                    onChange={
-                                                        handleFileChange
-                                                    }
-                                                />
-                                            </label>
-
-                                            {form.errors.attachment && (
-                                                <ErrorMessage>
-                                                    {
-                                                        form.errors
-                                                            .attachment
-                                                    }
-                                                </ErrorMessage>
-                                            )}
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* --------------------------------------------- */}
-                                {/* Submit Actions                                */}
-                                {/* --------------------------------------------- */}
-
-                                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        asChild
-                                        className="h-11 rounded-lg"
-                                    >
-                                        <Link href="/leave/applications">
-                                            Cancel
-                                        </Link>
-                                    </Button>
-
-                                    <Button
-                                        type="submit"
-                                        disabled={form.processing}
-                                        className="h-11 rounded-lg bg-[#4389BC] px-6 font-semibold hover:bg-[#3575A4]"
-                                    >
-                                        {form.processing ? (
-                                            <>
-                                                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                                Submitting...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Send className="mr-2 h-4 w-4" />
-                                                Submit Leave Request
-                                            </>
+                                            </ErrorMessage>
                                         )}
-                                    </Button>
-                                </div>
-                            </div>
 
-                            {/* ================================================= */}
-                            {/* RIGHT - SUMMARY                                   */}
-                            {/* ================================================= */}
+                                        {selectedLeaveType?.description && (
+                                            <div className="flex items-start gap-2.5 rounded-lg border border-blue-100 bg-blue-50/50 px-3.5 py-3 text-xs leading-5 text-slate-600">
+                                                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4389BC]" />
 
-                            <aside className="space-y-6">
-
-                                {/* Request Summary */}
-
-                                <div className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                    <div className="border-b border-slate-100 px-5 py-4">
-                                        <h2 className="text-sm font-semibold text-slate-900">
-                                            Request Summary
-                                        </h2>
-
-                                        <p className="mt-1 text-xs text-slate-500">
-                                            Review before submitting
-                                        </p>
+                                                <span>
+                                                    {
+                                                        selectedLeaveType.description
+                                                    }
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="space-y-5 p-5">
+                                    {/* Dates */}
 
-                                        <SummaryRow
-                                            label="Leave Type"
-                                            value={
-                                                selectedLeaveType?.name ??
-                                                'Not selected'
-                                            }
-                                        />
+                                    <div>
+                                        <div className="mb-3.5 flex items-end justify-between">
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-800">
+                                                    Leave Period
+                                                </p>
 
-                                        <SummaryRow
-                                            label="Start Date"
-                                            value={
-                                                form.data.start_date ||
-                                                'Not selected'
-                                            }
-                                        />
+                                                <p className="mt-0.5 text-xs text-slate-400">
+                                                    Select the dates covered by
+                                                    this request
+                                                </p>
+                                            </div>
 
-                                        <SummaryRow
-                                            label="End Date"
-                                            value={
-                                                form.data.end_date ||
-                                                'Not selected'
-                                            }
-                                        />
+                                            <CalendarDays className="h-4 w-4 text-slate-300" />
+                                        </div>
 
-                                        <SummaryRow
-                                            label="Schedule"
-                                            value={
-                                                form.data.schedule_type ===
-                                                'full_day'
-                                                    ? 'Full Day'
-                                                    : form.data
-                                                            .schedule_type ===
-                                                        'half_day_am'
-                                                      ? 'Half Day AM'
-                                                      : 'Half Day PM'
-                                            }
-                                        />
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <DateField
+                                                id="start_date"
+                                                label="Start Date"
+                                                value={
+                                                    form.data.start_date
+                                                }
+                                                error={
+                                                    form.errors.start_date
+                                                }
+                                                onChange={(value) =>
+                                                    form.setData(
+                                                        'start_date',
+                                                        value,
+                                                    )
+                                                }
+                                            />
 
-                                        <div className="border-t border-slate-100 pt-5">
-                                            <div className="flex items-end justify-between">
-                                                <span className="text-sm font-medium text-slate-600">
-                                                    Total
-                                                </span>
+                                            <DateField
+                                                id="end_date"
+                                                label="End Date"
+                                                value={
+                                                    form.data.end_date
+                                                }
+                                                error={
+                                                    form.errors.end_date
+                                                }
+                                                min={
+                                                    form.data.start_date ||
+                                                    undefined
+                                                }
+                                                onChange={(value) =>
+                                                    form.setData(
+                                                        'end_date',
+                                                        value,
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    </div>
 
-                                                <div>
-                                                    <span className="text-2xl font-bold text-slate-900">
+                                    {/* Duration */}
+
+                                    <div className="relative overflow-hidden rounded-xl border border-[#4389BC]/15 bg-gradient-to-br from-[#4389BC]/10 via-[#4389BC]/5 to-white px-5 py-4">
+                                        <div className="absolute right-0 top-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-[#4389BC]/10 blur-2xl" />
+
+                                        <div className="relative flex items-center justify-between gap-4">
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#4389BC]">
+                                                    Requested Duration
+                                                </p>
+
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Based on the selected
+                                                    period and schedule
+                                                </p>
+                                            </div>
+
+                                            <div className="text-right">
+                                                <div className="flex items-baseline justify-end gap-1.5">
+                                                    <span className="text-2xl font-bold tracking-tight text-slate-900">
                                                         {totalDays}
                                                     </span>
 
-                                                    <span className="ml-1 text-xs text-slate-500">
-                                                        day
-                                                        {totalDays !== 1
-                                                            ? 's'
-                                                            : ''}
+                                                    <span className="text-xs font-semibold text-slate-500">
+                                                        {durationUnit}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Schedule */}
+
+                                    <div className="space-y-3">
+                                        <div>
+                                            <FieldLabel required>
+                                                Schedule
+                                            </FieldLabel>
+
+                                            <p className="mt-0.5 text-xs text-slate-400">
+                                                Select the portion of the
+                                                working day
+                                            </p>
+                                        </div>
+
+                                        <div className="grid gap-3 sm:grid-cols-3">
+                                            <ScheduleOption
+                                                value="full_day"
+                                                label="Full Day"
+                                                description="Whole working day"
+                                                selected={
+                                                    form.data
+                                                        .schedule_type ===
+                                                    'full_day'
+                                                }
+                                                onClick={() =>
+                                                    form.setData(
+                                                        'schedule_type',
+                                                        'full_day',
+                                                    )
+                                                }
+                                            />
+
+                                            <ScheduleOption
+                                                value="half_day_am"
+                                                label="Half Day AM"
+                                                description="Morning"
+                                                selected={
+                                                    form.data
+                                                        .schedule_type ===
+                                                    'half_day_am'
+                                                }
+                                                onClick={() =>
+                                                    form.setData(
+                                                        'schedule_type',
+                                                        'half_day_am',
+                                                    )
+                                                }
+                                            />
+
+                                            <ScheduleOption
+                                                value="half_day_pm"
+                                                label="Half Day PM"
+                                                description="Afternoon"
+                                                selected={
+                                                    form.data
+                                                        .schedule_type ===
+                                                    'half_day_pm'
+                                                }
+                                                onClick={() =>
+                                                    form.setData(
+                                                        'schedule_type',
+                                                        'half_day_pm',
+                                                    )
+                                                }
+                                            />
+                                        </div>
+
+                                        {form.errors.schedule_type && (
+                                            <ErrorMessage>
+                                                {
+                                                    form.errors
+                                                        .schedule_type
+                                                }
+                                            </ErrorMessage>
+                                        )}
+                                    </div>
+
+                                    {/* Reason */}
+
+                                    <div className="space-y-2.5">
+                                        <div className="flex items-end justify-between gap-3">
+                                            <FieldLabel
+                                                htmlFor="reason"
+                                                required
+                                            >
+                                                Reason
+                                            </FieldLabel>
+
+                                            <span className="text-[11px] tabular-nums text-slate-400">
+                                                {
+                                                    form.data.reason.length
+                                                }
+                                                /2000
+                                            </span>
+                                        </div>
+
+                                        <Textarea
+                                            id="reason"
+                                            value={
+                                                form.data.reason
+                                            }
+                                            onChange={(
+                                                event: ChangeEvent<HTMLTextAreaElement>,
+                                            ) =>
+                                                form.setData(
+                                                    'reason',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Provide a clear and concise explanation for your leave request..."
+                                            maxLength={2000}
+                                            rows={5}
+                                            className={`
+                                                resize-none rounded-lg
+                                                bg-white leading-6 shadow-sm
+                                                ${
+                                                    form.errors.reason
+                                                        ? 'border-red-300'
+                                                        : ''
+                                                }
+                                            `}
+                                        />
+
+                                        {form.errors.reason && (
+                                            <ErrorMessage>
+                                                {
+                                                    form.errors.reason
+                                                }
+                                            </ErrorMessage>
+                                        )}
+                                    </div>
+
+                                    {/* Attachment */}
+
+                                    <div className="space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <FieldLabel
+                                                htmlFor="attachment"
+                                                required={
+                                                    !!selectedLeaveType?.requires_attachment
+                                                }
+                                            >
+                                                Supporting Document
+                                            </FieldLabel>
+
+                                            <span className="text-[11px] text-slate-400">
+                                                Maximum 5 MB
+                                            </span>
+                                        </div>
+
+                                        <label
+                                            htmlFor="attachment"
+                                            className={`
+                                                group flex cursor-pointer
+                                                flex-col items-center
+                                                justify-center rounded-xl
+                                                border border-dashed
+                                                px-5 py-8 text-center
+                                                transition-all
+                                                ${
+                                                    form.data.attachment
+                                                        ? 'border-[#4389BC]/40 bg-[#4389BC]/5'
+                                                        : 'border-slate-300 bg-slate-50/40 hover:border-[#4389BC]/50 hover:bg-[#4389BC]/5'
+                                                }
+                                            `}
+                                        >
+                                            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-transform group-hover:scale-105">
+                                                <Paperclip className="h-4 w-4 text-[#4389BC]" />
+                                            </div>
+
+                                            {form.data.attachment ? (
+                                                <>
+                                                    <p className="max-w-full truncate text-sm font-semibold text-slate-800">
+                                                        {
+                                                            form.data
+                                                                .attachment
+                                                                .name
+                                                        }
+                                                    </p>
+
+                                                    <p className="mt-1 text-xs text-[#4389BC]">
+                                                        Click to replace
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-sm font-semibold text-slate-700">
+                                                        Upload supporting
+                                                        document
+                                                    </p>
+
+                                                    <p className="mt-1 text-xs text-slate-400">
+                                                        PDF, JPG, JPEG, PNG
+                                                        or supported file
+                                                    </p>
+                                                </>
+                                            )}
+
+                                            <input
+                                                id="attachment"
+                                                type="file"
+                                                className="hidden"
+                                                onChange={
+                                                    handleFileChange
+                                                }
+                                            />
+                                        </label>
+
+                                        {form.errors.attachment && (
+                                            <ErrorMessage>
+                                                {
+                                                    form.errors
+                                                        .attachment
+                                                }
+                                            </ErrorMessage>
+                                        )}
+                                    </div>
                                 </div>
+                            </section>
 
-                                {/* Approval Information */}
+                            {/* ==================================================
+                                SUMMARY
+                            ================================================== */}
 
-                                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-                                    <div className="flex gap-3">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
-                                            <CheckCircle2 className="h-4 w-4 text-[#4389BC]" />
+                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
+                                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-slate-200">
+                                            <FileText className="h-4 w-4 text-[#4389BC]" />
                                         </div>
 
                                         <div>
-                                            <h3 className="text-sm font-semibold text-slate-900">
-                                                Approval Process
-                                            </h3>
+                                            <h2 className="text-sm font-semibold text-slate-900">
+                                                Request Summary
+                                            </h2>
 
-                                            <p className="mt-1 text-xs leading-5 text-slate-600">
-                                                Your request will be sent to
-                                                your assigned manager or head
-                                                for review after submission.
+                                            <p className="mt-0.5 text-xs text-slate-500">
+                                                Review the information before
+                                                submitting
                                             </p>
                                         </div>
                                     </div>
 
-                                    {employee.manager && (
-                                        <div className="mt-4 rounded-lg border border-blue-100 bg-white px-3 py-2.5">
-                                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                                                First Approver
+                                    <div className="hidden items-center gap-1.5 text-xs font-medium text-slate-400 sm:flex">
+                                        <Check className="h-3.5 w-3.5 text-[#4389BC]" />
+                                        Ready for review
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-0 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
+                                    <SummaryItem
+                                        label="Leave Type"
+                                        value={
+                                            selectedLeaveType?.name ??
+                                            'Not selected'
+                                        }
+                                    />
+
+                                    <SummaryItem
+                                        label="Start Date"
+                                        value={formatDisplayDate(
+                                            form.data.start_date,
+                                        )}
+                                    />
+
+                                    <SummaryItem
+                                        label="End Date"
+                                        value={formatDisplayDate(
+                                            form.data.end_date,
+                                        )}
+                                    />
+
+                                    <SummaryItem
+                                        label="Schedule"
+                                        value={scheduleLabel}
+                                    />
+                                </div>
+
+                                <div className="border-t border-slate-100 bg-slate-50/40 px-5 py-4 sm:px-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+                                                Total Leave
                                             </p>
 
-                                            <p className="mt-1 text-sm font-medium text-slate-800">
-                                                {employee.manager}
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                Requested duration
                                             </p>
                                         </div>
+
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className="text-2xl font-bold text-slate-900">
+                                                {totalDays}
+                                            </span>
+
+                                            <span className="text-xs font-semibold text-slate-500">
+                                                {durationUnit}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* ==================================================
+                                APPROVAL
+                            ================================================== */}
+
+                            <section className="overflow-hidden rounded-2xl border border-[#4389BC]/15 bg-[#4389BC]/5">
+                                <div className="flex gap-3.5 p-5 sm:p-6">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+                                        <CheckCircle2 className="h-4 w-4 text-[#4389BC]" />
+                                    </div>
+
+                                    <div className="min-w-0">
+                                        <h3 className="text-sm font-semibold text-slate-900">
+                                            Approval Process
+                                        </h3>
+
+                                        <p className="mt-1 text-xs leading-5 text-slate-600">
+                                            Your request will be routed to
+                                            your assigned manager or head
+                                            after submission.
+                                        </p>
+
+                                        {employee.manager && (
+                                            <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-lg border border-[#4389BC]/10 bg-white px-3 py-2 shadow-sm">
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    First Approver
+                                                </span>
+
+                                                <span className="h-1 w-1 rounded-full bg-slate-300" />
+
+                                                <span className="truncate text-xs font-semibold text-slate-700">
+                                                    {employee.manager}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* ==================================================
+                                BEFORE SUBMITTING
+                            ================================================== */}
+
+                            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] sm:p-6">
+                                <div className="flex gap-3">
+                                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+
+                                    <div className="min-w-0">
+                                        <h3 className="text-sm font-semibold text-slate-800">
+                                            Before submitting
+                                        </h3>
+
+                                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                            <ReviewPoint>
+                                                Confirm your leave dates are
+                                                correct.
+                                            </ReviewPoint>
+
+                                            <ReviewPoint>
+                                                Provide a clear reason for
+                                                your request.
+                                            </ReviewPoint>
+
+                                            <ReviewPoint>
+                                                Attach supporting documents
+                                                when required.
+                                            </ReviewPoint>
+
+                                            <ReviewPoint>
+                                                Requests may require approval
+                                                before becoming effective.
+                                            </ReviewPoint>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* ==================================================
+                                ACTIONS
+                            ================================================== */}
+
+                            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    asChild
+                                    className="h-11 rounded-lg border-slate-300 bg-white px-6 font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                                >
+                                    <Link href="/leave/applications">
+                                        Cancel
+                                    </Link>
+                                </Button>
+
+                                <Button
+                                    type="submit"
+                                    disabled={form.processing}
+                                    className="h-11 rounded-lg bg-[#28658F] px-7 font-semibold text-white shadow-sm transition-all hover:bg-[#1f5275] hover:shadow-md"
+                                >
+                                    {form.processing ? (
+                                        <>
+                                            <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                            Submitting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="mr-2 h-4 w-4" />
+                                            Submit Leave Request
+                                        </>
                                     )}
-                                </div>
-
-                                {/* Important Notice */}
-
-                                <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                                    <div className="flex gap-3">
-                                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-
-                                        <div>
-                                            <h3 className="text-sm font-semibold text-slate-800">
-                                                Before submitting
-                                            </h3>
-
-                                            <ul className="mt-2 space-y-2 text-xs leading-5 text-slate-500">
-                                                <li>
-                                                    • Make sure your leave
-                                                    dates are correct.
-                                                </li>
-
-                                                <li>
-                                                    • Provide a clear reason
-                                                    for your request.
-                                                </li>
-
-                                                <li>
-                                                    • Attach supporting
-                                                    documents when required.
-                                                </li>
-
-                                                <li>
-                                                    • Submitted requests may
-                                                    require approval before
-                                                    they become effective.
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </aside>
+                                </Button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -972,31 +976,182 @@ export default function Create({
 
 /*
 |--------------------------------------------------------------------------
-| Helper Components
+| Section Header
+|--------------------------------------------------------------------------
+*/
+
+function SectionHeader({
+    icon,
+    title,
+    description,
+}: {
+    icon: ReactNode;
+    title: string;
+    description: string;
+}) {
+    return (
+        <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-4 sm:px-6">
+            <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm">
+                    {icon}
+                </div>
+
+                <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-slate-900">
+                        {title}
+                    </h2>
+
+                    <p className="mt-0.5 text-xs text-slate-500">
+                        {description}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Field Label
+|--------------------------------------------------------------------------
+*/
+
+function FieldLabel({
+    children,
+    htmlFor,
+    required = false,
+}: {
+    children: ReactNode;
+    htmlFor?: string;
+    required?: boolean;
+}) {
+    return (
+        <label
+            htmlFor={htmlFor}
+            className="text-sm font-medium text-slate-800"
+        >
+            {children}
+
+            {required && (
+                <span className="ml-1 text-red-500">
+                    *
+                </span>
+            )}
+        </label>
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Date Field
+|--------------------------------------------------------------------------
+*/
+
+function DateField({
+    id,
+    label,
+    value,
+    error,
+    min,
+    onChange,
+}: {
+    id: string;
+    label: string;
+    value: string;
+    error?: string;
+    min?: string;
+    onChange: (value: string) => void;
+}) {
+    return (
+        <div className="space-y-2">
+            <FieldLabel
+                htmlFor={id}
+                required
+            >
+                {label}
+            </FieldLabel>
+
+            <Input
+                id={id}
+                type="date"
+                value={value}
+                min={min}
+                onChange={(event) =>
+                    onChange(event.target.value)
+                }
+                className={`
+                    h-11 rounded-lg bg-white shadow-sm
+                    ${
+                        error
+                            ? 'border-red-300'
+                            : ''
+                    }
+                `}
+            />
+
+            {error && (
+                <ErrorMessage>
+                    {error}
+                </ErrorMessage>
+            )}
+        </div>
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Information Field
 |--------------------------------------------------------------------------
 */
 
 function InfoField({
     label,
     value,
+    emphasized = false,
 }: {
     label: string;
     value: string;
+    emphasized?: boolean;
 }) {
     return (
-        <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <div
+            className={`
+                rounded-xl border px-4 py-3
+                transition-colors
+                ${
+                    emphasized
+                        ? 'border-[#4389BC]/20 bg-[#4389BC]/5'
+                        : 'border-slate-100 bg-slate-50/70'
+                }
+            `}
+        >
+            <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400">
                 {label}
             </p>
 
-            <p className="mt-1 truncate text-sm font-medium text-slate-800">
+            <p
+                className={`
+                    mt-1.5 truncate text-sm
+                    ${
+                        emphasized
+                            ? 'font-semibold text-slate-800'
+                            : 'font-medium text-slate-700'
+                    }
+                `}
+            >
                 {value}
             </p>
         </div>
     );
 }
 
-function SummaryRow({
+/*
+|--------------------------------------------------------------------------
+| Summary Item
+|--------------------------------------------------------------------------
+*/
+
+function SummaryItem({
     label,
     value,
 }: {
@@ -1004,17 +1159,45 @@ function SummaryRow({
     value: string;
 }) {
     return (
-        <div className="flex items-start justify-between gap-4">
-            <span className="text-xs font-medium text-slate-400">
+        <div className="px-5 py-4 sm:px-6">
+            <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400">
                 {label}
-            </span>
+            </p>
 
-            <span className="max-w-[170px] text-right text-sm font-medium text-slate-700">
+            <p className="mt-1.5 truncate text-sm font-semibold text-slate-800">
                 {value}
+            </p>
+        </div>
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Review Point
+|--------------------------------------------------------------------------
+*/
+
+function ReviewPoint({
+    children,
+}: {
+    children: ReactNode;
+}) {
+    return (
+        <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2.5">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4389BC]" />
+
+            <span className="text-xs leading-5 text-slate-500">
+                {children}
             </span>
         </div>
     );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Error Message
+|--------------------------------------------------------------------------
+*/
 
 function ErrorMessage({
     children,
@@ -1028,8 +1211,13 @@ function ErrorMessage({
     );
 }
 
+/*
+|--------------------------------------------------------------------------
+| Schedule Option
+|--------------------------------------------------------------------------
+*/
+
 function ScheduleOption({
-    value,
     label,
     description,
     selected,
@@ -1047,25 +1235,20 @@ function ScheduleOption({
             onClick={onClick}
             aria-pressed={selected}
             className={`
-                relative
-                rounded-xl
-                border
-                p-4
-                text-left
-                transition-all
+                group relative rounded-xl border p-4
+                text-left transition-all
                 ${
                     selected
-                        ? 'border-[#4389BC] bg-[#4389BC]/5 ring-2 ring-[#4389BC]/10'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        ? 'border-[#4389BC] bg-[#4389BC]/5 shadow-sm ring-2 ring-[#4389BC]/10'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm'
                 }
             `}
         >
             <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="min-w-0">
                     <p
                         className={`
-                            text-sm
-                            font-semibold
+                            text-sm font-semibold
                             ${
                                 selected
                                     ? 'text-[#28658F]'
@@ -1083,23 +1266,18 @@ function ScheduleOption({
 
                 <div
                     className={`
-                        mt-0.5
-                        flex
-                        h-4
-                        w-4
-                        items-center
-                        justify-center
-                        rounded-full
-                        border
+                        mt-0.5 flex h-5 w-5 shrink-0 items-center
+                        justify-center rounded-full border
+                        transition-all
                         ${
                             selected
                                 ? 'border-[#4389BC] bg-[#4389BC]'
-                                : 'border-slate-300'
+                                : 'border-slate-300 bg-white group-hover:border-slate-400'
                         }
                     `}
                 >
                     {selected && (
-                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                        <Check className="h-3 w-3 text-white" />
                     )}
                 </div>
             </div>

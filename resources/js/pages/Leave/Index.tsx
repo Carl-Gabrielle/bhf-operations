@@ -1,9 +1,12 @@
 import { Link } from '@inertiajs/react';
+
 import {
     ArrowRight,
     CalendarDays,
     CheckCircle2,
     Clock3,
+    Edit3,
+    Eye,
     FileText,
     Plus,
     XCircle,
@@ -19,12 +22,20 @@ import { Button } from '@/components/ui/button';
 
 type LeaveApplication = {
     id: number;
+
     application_no: string;
+
     start_date: string;
+
     end_date: string;
+
     total_days: string | number;
+
     status: string;
+
     reason: string;
+
+    schedule_type?: string;
 
     leave_type?: {
         id: number;
@@ -39,6 +50,7 @@ type LeaveApplication = {
         action: string;
         remarks?: string | null;
         acted_at?: string | null;
+
         approver?: {
             id: number;
             name: string;
@@ -48,11 +60,17 @@ type LeaveApplication = {
 
 type PaginatedApplications = {
     data: LeaveApplication[];
+
     current_page: number;
+
     last_page: number;
+
     per_page: number;
+
     total: number;
+
     from?: number | null;
+
     to?: number | null;
 };
 
@@ -71,64 +89,80 @@ const getStatus = (status: string) => {
         case 'pending_approval':
             return {
                 label: 'Pending Approval',
+
                 className:
                     'border-amber-200 bg-amber-50 text-amber-700',
+
                 icon: Clock3,
             };
 
         case 'approved':
             return {
                 label: 'Approved',
+
                 className:
                     'border-emerald-200 bg-emerald-50 text-emerald-700',
+
                 icon: CheckCircle2,
             };
 
         case 'rejected':
             return {
                 label: 'Rejected',
+
                 className:
                     'border-red-200 bg-red-50 text-red-700',
+
                 icon: XCircle,
             };
 
         case 'returned':
             return {
                 label: 'Returned',
+
                 className:
                     'border-orange-200 bg-orange-50 text-orange-700',
+
                 icon: FileText,
             };
 
         case 'processing':
             return {
                 label: 'Processing',
+
                 className:
                     'border-blue-200 bg-blue-50 text-blue-700',
+
                 icon: Clock3,
             };
 
         case 'completed':
             return {
                 label: 'Completed',
+
                 className:
                     'border-green-200 bg-green-50 text-green-700',
+
                 icon: CheckCircle2,
             };
 
         case 'cancelled':
             return {
                 label: 'Cancelled',
+
                 className:
                     'border-slate-200 bg-slate-100 text-slate-600',
+
                 icon: XCircle,
             };
 
         case 'submitted':
             return {
                 label: 'Submitted',
+
                 className:
                     'border-blue-200 bg-blue-50 text-blue-700',
+
                 icon: FileText,
             };
 
@@ -136,8 +170,10 @@ const getStatus = (status: string) => {
         default:
             return {
                 label: 'Draft',
+
                 className:
                     'border-slate-200 bg-slate-100 text-slate-600',
+
                 icon: FileText,
             };
     }
@@ -169,6 +205,28 @@ const formatDate = (date: string) => {
 
 /*
 |--------------------------------------------------------------------------
+| Schedule Formatter
+|--------------------------------------------------------------------------
+*/
+
+const formatSchedule = (schedule?: string) => {
+    switch (schedule) {
+        case 'full_day':
+            return 'Full Day';
+
+        case 'half_day_am':
+            return 'Half Day AM';
+
+        case 'half_day_pm':
+            return 'Half Day PM';
+
+        default:
+            return '—';
+    }
+};
+
+/*
+|--------------------------------------------------------------------------
 | Index Page
 |--------------------------------------------------------------------------
 */
@@ -176,7 +234,8 @@ const formatDate = (date: string) => {
 export default function Index({
     applications,
 }: Props) {
-    const hasApplications = applications.data.length > 0;
+    const hasApplications =
+        applications.data.length > 0;
 
     return (
         <div className="min-h-full bg-slate-50/50">
@@ -203,7 +262,6 @@ export default function Index({
                                 View and track your leave applications.
                             </p>
                         </div>
-
                     </div>
 
                     <Button
@@ -212,10 +270,10 @@ export default function Index({
                     >
                         <Link href="/leave/applications/create">
                             <Plus className="mr-2 h-4 w-4" />
+
                             Apply for Leave
                         </Link>
                     </Button>
-
                 </div>
 
                 {/* =========================================================
@@ -224,8 +282,11 @@ export default function Index({
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 
+                    {/* Total */}
+
                     <div className="rounded-xl border bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between">
+
                             <div>
                                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                                     Total Applications
@@ -242,8 +303,11 @@ export default function Index({
                         </div>
                     </div>
 
+                    {/* Current Page */}
+
                     <div className="rounded-xl border bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between">
+
                             <div>
                                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                                     Current Page
@@ -260,8 +324,11 @@ export default function Index({
                         </div>
                     </div>
 
+                    {/* Showing */}
+
                     <div className="rounded-xl border bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between">
+
                             <div>
                                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                                     Showing
@@ -279,7 +346,6 @@ export default function Index({
                             </div>
                         </div>
                     </div>
-
                 </div>
 
                 {/* =========================================================
@@ -288,19 +354,36 @@ export default function Index({
 
                 <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
 
-                    {/* Table/List Header */}
+                    {/* Table Header */}
 
                     {hasApplications && (
-                        <div className="hidden border-b bg-slate-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[1.4fr_1fr_1fr_1fr_auto] md:gap-4">
-                            <div>Application</div>
-                            <div>Leave Type</div>
-                            <div>Schedule</div>
-                            <div>Status</div>
-                            <div />
+                        <div className="hidden border-b bg-slate-50/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid md:grid-cols-[1.4fr_1fr_1.1fr_1fr_auto] md:gap-4">
+
+                            <div>
+                                Application
+                            </div>
+
+                            <div>
+                                Leave Type
+                            </div>
+
+                            <div>
+                                Leave Period
+                            </div>
+
+                            <div>
+                                Status
+                            </div>
+
+                            <div className="text-right">
+                                Actions
+                            </div>
                         </div>
                     )}
 
-                    {/* Empty State */}
+                    {/* =====================================================
+                        EMPTY STATE
+                    ====================================================== */}
 
                     {!hasApplications ? (
                         <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
@@ -325,51 +408,58 @@ export default function Index({
                             >
                                 <Link href="/leave/applications/create">
                                     <Plus className="mr-2 h-4 w-4" />
+
                                     Apply for Leave
                                 </Link>
                             </Button>
-
                         </div>
                     ) : (
-
-                        /* =================================================
-                           APPLICATIONS
-                        ================================================== */
-
                         <div className="divide-y">
 
-                            {applications.data.map((application) => {
-                                const status = getStatus(
-                                    application.status,
-                                );
+                            {applications.data.map(
+                                (application) => {
+                                    const status =
+                                        getStatus(
+                                            application.status,
+                                        );
 
-                                const StatusIcon = status.icon;
+                                    const StatusIcon =
+                                        status.icon;
 
-                                return (
-                                    <Link
-                                        key={application.id}
-                                        href={`/leave/applications/${application.id}`}
-                                        className="group block transition-colors hover:bg-slate-50"
-                                    >
-                                        <div className="p-5">
+                                    const canEdit =
+                                        application.status ===
+                                            'draft' ||
+                                        application.status ===
+                                            'returned';
 
-                                            {/* Mobile / Tablet Layout */}
+                                    return (
+                                        <div
+                                            key={application.id}
+                                            className="group transition-colors hover:bg-slate-50"
+                                        >
 
-                                            <div className="space-y-4 md:hidden">
+                                            {/* =================================================
+                                                MOBILE / TABLET
+                                            ================================================== */}
+
+                                            <div className="space-y-4 p-5 md:hidden">
 
                                                 <div className="flex items-start justify-between gap-4">
 
                                                     <div className="min-w-0">
 
                                                         <p className="truncate text-sm font-semibold text-slate-900">
-                                                            {application.application_no}
+                                                            {
+                                                                application.application_no
+                                                            }
                                                         </p>
 
                                                         <p className="mt-1 text-sm text-slate-500">
-                                                            {application.leave_type?.name ??
+                                                            {application
+                                                                .leave_type
+                                                                ?.name ??
                                                                 'Leave'}
                                                         </p>
-
                                                     </div>
 
                                                     <span
@@ -377,9 +467,10 @@ export default function Index({
                                                     >
                                                         <StatusIcon className="h-3.5 w-3.5" />
 
-                                                        {status.label}
+                                                        {
+                                                            status.label
+                                                        }
                                                     </span>
-
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-4">
@@ -407,40 +498,71 @@ export default function Index({
                                                             )}
                                                         </p>
                                                     </div>
-
                                                 </div>
 
                                                 <div className="flex items-center justify-between border-t pt-3">
 
-                                                    <span className="text-sm text-slate-500">
-                                                        {application.total_days} day(s)
-                                                    </span>
+                                                    <div>
+                                                        <p className="text-sm text-slate-500">
+                                                            {
+                                                                application.total_days
+                                                            }{' '}
+                                                            day(s)
+                                                        </p>
 
-                                                    <span className="flex items-center text-sm font-medium text-[#4389BC]">
-                                                        View details
-                                                        <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                                                    </span>
+                                                        <p className="mt-0.5 text-xs text-slate-400">
+                                                            {formatSchedule(
+                                                                application.schedule_type,
+                                                            )}
+                                                        </p>
+                                                    </div>
 
+                                                    <div className="flex items-center gap-2">
+
+                                                        {/* View */}
+
+                                                        <Link
+                                                            href={`/leave/applications/${application.id}`}
+                                                            aria-label={`View ${application.application_no}`}
+                                                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#4389BC]/30 hover:bg-[#4389BC]/10 hover:text-[#4389BC]"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Link>
+
+                                                        {/* Edit */}
+
+                                                        {canEdit && (
+                                                            <Link
+                                                                href={`/leave/applications/${application.id}/edit`}
+                                                                aria-label={`Edit ${application.application_no}`}
+                                                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                                                            >
+                                                                <Edit3 className="h-4 w-4" />
+                                                            </Link>
+                                                        )}
+                                                    </div>
                                                 </div>
-
                                             </div>
 
-                                            {/* Desktop Layout */}
+                                            {/* =================================================
+                                                DESKTOP
+                                            ================================================== */}
 
-                                            <div className="hidden md:grid md:grid-cols-[1.4fr_1fr_1fr_1fr_auto] md:items-center md:gap-4">
+                                            <div className="hidden p-5 md:grid md:grid-cols-[1.4fr_1fr_1.1fr_1fr_auto] md:items-center md:gap-4">
 
                                                 {/* Application */}
 
                                                 <div className="min-w-0">
 
                                                     <p className="truncate text-sm font-semibold text-slate-900">
-                                                        {application.application_no}
+                                                        {
+                                                            application.application_no
+                                                        }
                                                     </p>
 
                                                     <p className="mt-1 truncate text-xs text-slate-500">
                                                         Filed leave application
                                                     </p>
-
                                                 </div>
 
                                                 {/* Leave Type */}
@@ -448,19 +570,26 @@ export default function Index({
                                                 <div className="min-w-0">
 
                                                     <p className="truncate text-sm font-medium text-slate-700">
-                                                        {application.leave_type?.name ??
+                                                        {application
+                                                            .leave_type
+                                                            ?.name ??
                                                             'Leave'}
                                                     </p>
 
-                                                    {application.leave_type?.code && (
+                                                    {application
+                                                        .leave_type
+                                                        ?.code && (
                                                         <p className="mt-1 text-xs text-slate-400">
-                                                            {application.leave_type.code}
+                                                            {
+                                                                application
+                                                                    .leave_type
+                                                                    .code
+                                                            }
                                                         </p>
                                                     )}
-
                                                 </div>
 
-                                                {/* Schedule */}
+                                                {/* Leave Period */}
 
                                                 <div>
 
@@ -476,10 +605,11 @@ export default function Index({
                                                             application.end_date,
                                                         )}{' '}
                                                         ·{' '}
-                                                        {application.total_days}{' '}
+                                                        {
+                                                            application.total_days
+                                                        }{' '}
                                                         day(s)
                                                     </p>
-
                                                 </div>
 
                                                 {/* Status */}
@@ -491,31 +621,54 @@ export default function Index({
                                                     >
                                                         <StatusIcon className="h-3.5 w-3.5" />
 
-                                                        {status.label}
+                                                        {
+                                                            status.label
+                                                        }
                                                     </span>
-
                                                 </div>
 
-                                                {/* Arrow */}
+                                                {/* Actions */}
 
-                                                <div className="flex justify-end">
+                                                <div className="flex items-center justify-end gap-2">
 
-                                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors group-hover:bg-[#4389BC]/10 group-hover:text-[#4389BC]">
-                                                        <ArrowRight className="h-4 w-4" />
-                                                    </div>
+                                                    {/* View */}
 
+                                                    <Link
+                                                        href={`/leave/applications/${application.id}`}
+                                                        aria-label={`View ${application.application_no}`}
+                                                        title="View application"
+                                                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-[#4389BC]/30 hover:bg-[#4389BC]/10 hover:text-[#4389BC]"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </Link>
+
+                                                    {/* Edit */}
+
+                                                    {canEdit ? (
+                                                        <Link
+                                                            href={`/leave/applications/${application.id}/edit`}
+                                                            aria-label={`Edit ${application.application_no}`}
+                                                            title="Edit application"
+                                                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+                                                        >
+                                                            <Edit3 className="h-4 w-4" />
+                                                        </Link>
+                                                    ) : (
+                                                        <div
+                                                            title="Only draft or returned applications can be edited"
+                                                            className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-slate-300"
+                                                        >
+                                                            <Edit3 className="h-4 w-4" />
+                                                        </div>
+                                                    )}
                                                 </div>
-
                                             </div>
-
                                         </div>
-                                    </Link>
-                                );
-                            })}
-
+                                    );
+                                },
+                            )}
                         </div>
                     )}
-
                 </div>
 
                 {/* =========================================================
@@ -527,21 +680,29 @@ export default function Index({
 
                         <p className="text-sm text-slate-500">
                             Showing{' '}
+
                             <span className="font-medium text-slate-700">
                                 {applications.from ?? 0}
                             </span>{' '}
+
                             to{' '}
+
                             <span className="font-medium text-slate-700">
                                 {applications.to ?? 0}
                             </span>{' '}
+
                             of{' '}
+
                             <span className="font-medium text-slate-700">
                                 {applications.total}
                             </span>{' '}
+
                             applications
                         </p>
 
                         <div className="flex items-center gap-2">
+
+                            {/* Previous */}
 
                             {applications.current_page > 1 ? (
                                 <Link
@@ -559,9 +720,13 @@ export default function Index({
                                 </span>
                             )}
 
+                            {/* Current */}
+
                             <div className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-[#4389BC] px-3 text-sm font-semibold text-white">
                                 {applications.current_page}
                             </div>
+
+                            {/* Next */}
 
                             {applications.current_page <
                             applications.last_page ? (
@@ -579,12 +744,9 @@ export default function Index({
                                     Next
                                 </span>
                             )}
-
                         </div>
-
                     </div>
                 )}
-
             </div>
         </div>
     );

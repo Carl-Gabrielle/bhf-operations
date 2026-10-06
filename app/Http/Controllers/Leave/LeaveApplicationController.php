@@ -8,6 +8,7 @@ use App\Models\LeaveType;
 use App\Services\Leave\LeaveApplicationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,6 +45,12 @@ class LeaveApplicationController extends Controller
             'applications' => $applications,
         ]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create
+    |--------------------------------------------------------------------------
+    */
 
     /**
      * Display the leave application form.
@@ -84,6 +91,12 @@ class LeaveApplicationController extends Controller
             ],
         ]);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Store
+    |--------------------------------------------------------------------------
+    */
 
     /**
      * Store a new leave application.
@@ -166,12 +179,6 @@ class LeaveApplicationController extends Controller
         |--------------------------------------------------------------------------
         | Redirect to Application Details
         |--------------------------------------------------------------------------
-        |
-        | IMPORTANT:
-        | Current route name is:
-        |
-        | leave.applications.show
-        |
         */
 
         return redirect()
@@ -184,6 +191,12 @@ class LeaveApplicationController extends Controller
                 "Leave application {$application->application_no} submitted successfully."
             );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Show
+    |--------------------------------------------------------------------------
+    */
 
     /**
      * Display a specific leave application.
@@ -198,6 +211,10 @@ class LeaveApplicationController extends Controller
         |--------------------------------------------------------------------------
         | Authorization
         |--------------------------------------------------------------------------
+        |
+        | Employees can view their own applications.
+        | Users with leave.approve can view applications for approval.
+        |
         */
 
         abort_unless(
@@ -221,8 +238,127 @@ class LeaveApplicationController extends Controller
             'approvals.approver.position',
         ]);
 
-        return Inertia::render('Leave/Show', [
+        return Inertia::render('Leave/View', [
             'application' => $leaveApplication,
         ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Download Attachment
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Download the attachment for a leave application.
+     *
+     * This is intentionally protected through Laravel instead of
+     * exposing the /storage URL directly.
+     */
+    public function download(
+        Request $request,
+        LeaveApplication $leaveApplication
+    ) {
+        $user = $request->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Authorization
+        |--------------------------------------------------------------------------
+        |
+        | The employee who owns the application can download it.
+        | Users with leave.approve can also access it.
+        |
+        */
+
+        abort_unless(
+            $leaveApplication->employee_id === $user->id
+                || $user->can('leave.approve'),
+            403
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Check Attachment
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            !empty($leaveApplication->attachment_path),
+            404
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Storage Disk
+        |--------------------------------------------------------------------------
+        */
+
+        $disk = Storage::disk('public');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Check File Exists
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            $disk->exists($leaveApplication->attachment_path),
+            404
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Filename
+        |--------------------------------------------------------------------------
+        */
+
+        $filename = basename(
+            $leaveApplication->attachment_path
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | MIME Type
+        |--------------------------------------------------------------------------
+        */
+
+        $mimeType = $disk->mimeType(
+            $leaveApplication->attachment_path
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Force Download
+        |--------------------------------------------------------------------------
+        |
+        | Content-Disposition: attachment explicitly tells the browser
+        | to download the file instead of displaying it inline.
+        |
+        */
+
+        return response()->streamDownload(
+            function () use ($disk, $leaveApplication) {
+                echo $disk->get(
+                    $leaveApplication->attachment_path
+                );
+            },
+            $filename,
+            [
+                'Content-Type' => $mimeType ?: 'application/octet-stream',
+
+                'Content-Disposition' =>
+                    'attachment; filename="' .
+                    $filename .
+                    '"',
+
+                'Cache-Control' =>
+                    'private, no-store, no-cache, must-revalidate',
+
+                'Pragma' => 'no-cache',
+
+                'Expires' => '0',
+            ]
+        );
     }
 }
