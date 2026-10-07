@@ -1,12 +1,12 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 
+import { Head, Link, useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
     Building2,
     CalendarDays,
     Check,
     CheckCircle2,
-    ChevronRight,
     Clock3,
     Download,
     Edit3,
@@ -20,31 +20,12 @@ import {
     XCircle,
 } from 'lucide-react';
 
-import {
-    FormEvent,
-    ReactNode,
-    useState,
-} from 'react';
-
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
-/*
-|--------------------------------------------------------------------------
-| Types
-|--------------------------------------------------------------------------
-*/
-
-type LeaveStatus =
-    | 'draft'
-    | 'submitted'
-    | 'pending_approval'
-    | 'approved'
-    | 'rejected'
-    | 'returned'
-    | 'processing'
-    | 'completed'
-    | 'cancelled'
-    | string;
+type LeaveStatus = string;
+type ScheduleType = 'full_day' | 'half_day_am' | 'half_day_pm';
 
 type Approval = {
     id: number;
@@ -53,12 +34,10 @@ type Approval = {
     action: string;
     remarks?: string | null;
     acted_at?: string | null;
-
     approver?: {
         id: number;
         name: string;
         employee_number?: string | null;
-
         position?: {
             id: number;
             name: string;
@@ -80,64 +59,42 @@ type LeaveApplication = {
     application_no: string;
     employee_id: number;
     leave_type_id: number;
-
     date_filed: string;
-
     start_date: string;
     end_date: string;
-
     total_days: string | number;
-
-    schedule_type:
-        | 'full_day'
-        | 'half_day_am'
-        | 'half_day_pm'
-        | string;
-
+    schedule_type: ScheduleType | string;
     reason: string;
-
     attachment_path?: string | null;
-
     status: LeaveStatus;
-
     current_step?: number | null;
-
     employee_confirmed?: boolean;
     employee_confirmed_at?: string | null;
-
     submitted_at?: string | null;
     approved_at?: string | null;
     rejected_at?: string | null;
     processed_at?: string | null;
     completed_at?: string | null;
     cancelled_at?: string | null;
-
     employee?: {
         id: number;
         name: string;
-
         employee_number?: string | null;
-
         organizational_unit?: {
             id: number;
             name: string;
         } | null;
-
         position?: {
             id: number;
             name: string;
         } | null;
-
         reports_to?: {
             id: number;
             name: string;
         } | null;
     } | null;
-
     leave_type?: LeaveType | null;
-
     approvals?: Approval[];
-
     approval_workflow?: {
         id: number;
         name?: string | null;
@@ -150,268 +107,238 @@ type Props = {
     editing?: boolean;
 };
 
-/*
-|--------------------------------------------------------------------------
-| Formatting Helpers
-|--------------------------------------------------------------------------
-*/
+type FormData = {
+    leave_type_id: string;
+    start_date: string;
+    end_date: string;
+    schedule_type: ScheduleType;
+    reason: string;
+    attachment: File | null;
+};
 
-function formatDate(date?: string | null) {
-    if (!date) {
-        return '—';
+const statusMap: Record<
+    string,
+    {
+        label: string;
+        description: string;
+        className: string;
+        accent: string;
+        icon: typeof FileText;
+    }
+> = {
+    draft: {
+        label: 'Draft',
+        description: 'This application has not been submitted yet.',
+        className: 'border-slate-200 bg-slate-100 text-slate-700',
+        accent: 'bg-slate-400',
+        icon: FileText,
+    },
+    submitted: {
+        label: 'Submitted',
+        description: 'Your application has been submitted for review.',
+        className: 'border-blue-200 bg-blue-50 text-blue-800',
+        accent: 'bg-blue-600',
+        icon: FileText,
+    },
+    pending_approval: {
+        label: 'Pending approval',
+        description: 'Your application is waiting for the assigned approver.',
+        className: 'border-amber-200 bg-amber-50 text-amber-800',
+        accent: 'bg-amber-500',
+        icon: Clock3,
+    },
+    approved: {
+        label: 'Approved',
+        description: 'Your leave application has been approved.',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        accent: 'bg-emerald-600',
+        icon: CheckCircle2,
+    },
+    rejected: {
+        label: 'Rejected',
+        description: 'Your leave application has been rejected.',
+        className: 'border-rose-200 bg-rose-50 text-rose-800',
+        accent: 'bg-rose-600',
+        icon: XCircle,
+    },
+    returned: {
+        label: 'Returned',
+        description: 'Your application needs an update before it can continue.',
+        className: 'border-orange-200 bg-orange-50 text-orange-800',
+        accent: 'bg-orange-500',
+        icon: Clock3,
+    },
+    processing: {
+        label: 'Processing',
+        description: 'Your leave application is being processed.',
+        className: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+        accent: 'bg-indigo-600',
+        icon: Clock3,
+    },
+    completed: {
+        label: 'Completed',
+        description: 'Processing for this leave application is complete.',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        accent: 'bg-emerald-600',
+        icon: CheckCircle2,
+    },
+    cancelled: {
+        label: 'Cancelled',
+        description: 'This leave application has been cancelled.',
+        className: 'border-slate-200 bg-slate-100 text-slate-700',
+        accent: 'bg-slate-400',
+        icon: XCircle,
+    },
+};
+
+const getStatus = (value: LeaveStatus) => {
+    const key = value?.trim().toLowerCase() ?? '';
+    if (Object.prototype.hasOwnProperty.call(statusMap, key)) {
+        return statusMap[key];
     }
 
-    const parsed = new Date(date);
+    const label = key
+        ? key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+        : 'Status unavailable';
 
-    if (Number.isNaN(parsed.getTime())) {
-        return date;
+    return {
+        label,
+        description: 'Current application status.',
+        className: 'border-slate-200 bg-slate-100 text-slate-700',
+        accent: 'bg-slate-400',
+        icon: FileText,
+    };
+};
+
+const approvalMap: Record<
+    string,
+    { label: string; className: string; iconClass: string; icon: typeof Clock3 }
+> = {
+    approved: {
+        label: 'Approved',
+        className: 'text-emerald-800',
+        iconClass: 'border-emerald-200 bg-emerald-50',
+        icon: CheckCircle2,
+    },
+    rejected: {
+        label: 'Rejected',
+        className: 'text-rose-800',
+        iconClass: 'border-rose-200 bg-rose-50',
+        icon: XCircle,
+    },
+    returned: {
+        label: 'Returned',
+        className: 'text-orange-800',
+        iconClass: 'border-orange-200 bg-orange-50',
+        icon: Clock3,
+    },
+};
+
+const getApprovalStatus = (action?: string) =>
+    approvalMap[action?.toLowerCase() ?? ''] ?? {
+        label: 'Pending',
+        className: 'text-amber-800',
+        iconClass: 'border-amber-200 bg-amber-50',
+        icon: Clock3,
+    };
+
+const parseDateOnly = (value?: string | null) => {
+    if (!value) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month, day));
+
+    return date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month &&
+        date.getUTCDate() === day
+        ? date
+        : null;
+};
+
+function formatDate(value?: string | null) {
+    if (!value) return '—';
+    const date = parseDateOnly(value);
+    if (date) {
+        return new Intl.DateTimeFormat('en-PH', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(date);
     }
 
-    return parsed.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-    });
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+        ? value
+        : new Intl.DateTimeFormat('en-PH', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+          }).format(parsed);
 }
 
-function formatShortDate(date?: string | null) {
-    if (!date) {
-        return '—';
+function formatShortDate(value?: string | null) {
+    if (!value) return '—';
+    const date = parseDateOnly(value);
+    if (date) {
+        return new Intl.DateTimeFormat('en-PH', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(date);
     }
 
-    const parsed = new Date(date);
-
-    if (Number.isNaN(parsed.getTime())) {
-        return date;
-    }
-
-    return parsed.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+        ? value
+        : new Intl.DateTimeFormat('en-PH', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+          }).format(parsed);
 }
 
-function formatDateTime(date?: string | null) {
-    if (!date) {
-        return '—';
-    }
-
-    const parsed = new Date(date);
-
-    if (Number.isNaN(parsed.getTime())) {
-        return date;
-    }
-
-    return parsed.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
+function formatDateTime(value?: string | null) {
+    if (!value) return '—';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+        ? value
+        : new Intl.DateTimeFormat('en-PH', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+          }).format(parsed);
 }
 
-function formatSchedule(schedule?: string | null) {
-    switch (schedule) {
-        case 'full_day':
-            return 'Full Day';
+function formatSchedule(value?: string | null) {
+    const labels: Record<string, string> = {
+        full_day: 'Full day',
+        half_day_am: 'Half day · Morning',
+        half_day_pm: 'Half day · Afternoon',
+    };
 
-        case 'half_day_am':
-            return 'Half Day — Morning';
-
-        case 'half_day_pm':
-            return 'Half Day — Afternoon';
-
-        default:
-            return schedule || '—';
-    }
+    return value ? labels[value] ?? value : '—';
 }
 
-/*
-|--------------------------------------------------------------------------
-| Status Helpers
-|--------------------------------------------------------------------------
-*/
-
-function getStatus(status: LeaveStatus) {
-    switch (status) {
-        case 'submitted':
-            return {
-                label: 'Submitted',
-                description:
-                    'Application has been submitted.',
-                className:
-                    'border-blue-200 bg-blue-50 text-blue-700',
-                icon: FileText,
-                accent: 'bg-blue-600',
-            };
-
-        case 'pending_approval':
-            return {
-                label: 'Pending Approval',
-                description:
-                    'Waiting for the assigned approver.',
-                className:
-                    'border-amber-200 bg-amber-50 text-amber-700',
-                icon: Clock3,
-                accent: 'bg-amber-500',
-            };
-
-        case 'approved':
-            return {
-                label: 'Approved',
-                description:
-                    'Application has been approved.',
-                className:
-                    'border-emerald-200 bg-emerald-50 text-emerald-700',
-                icon: CheckCircle2,
-                accent: 'bg-emerald-600',
-            };
-
-        case 'rejected':
-            return {
-                label: 'Rejected',
-                description:
-                    'Application has been rejected.',
-                className:
-                    'border-red-200 bg-red-50 text-red-700',
-                icon: XCircle,
-                accent: 'bg-red-600',
-            };
-
-        case 'returned':
-            return {
-                label: 'Returned',
-                description:
-                    'Application requires employee attention.',
-                className:
-                    'border-orange-200 bg-orange-50 text-orange-700',
-                icon: Clock3,
-                accent: 'bg-orange-500',
-            };
-
-        case 'processing':
-            return {
-                label: 'Processing',
-                description:
-                    'Application is being processed.',
-                className:
-                    'border-indigo-200 bg-indigo-50 text-indigo-700',
-                icon: Clock3,
-                accent: 'bg-indigo-600',
-            };
-
-        case 'completed':
-            return {
-                label: 'Completed',
-                description:
-                    'Leave application is completed.',
-                className:
-                    'border-emerald-200 bg-emerald-50 text-emerald-700',
-                icon: CheckCircle2,
-                accent: 'bg-emerald-600',
-            };
-
-        case 'cancelled':
-            return {
-                label: 'Cancelled',
-                description:
-                    'Application has been cancelled.',
-                className:
-                    'border-slate-200 bg-slate-100 text-slate-600',
-                icon: XCircle,
-                accent: 'bg-slate-500',
-            };
-
-        default:
-            return {
-                label: 'Draft',
-                description:
-                    'Application is still in draft.',
-                className:
-                    'border-slate-200 bg-slate-100 text-slate-600',
-                icon: FileText,
-                accent: 'bg-slate-500',
-            };
-    }
+function getInitials(value?: string | null) {
+    const parts = value?.trim().split(/\s+/).filter(Boolean) ?? [];
+    if (!parts.length) return '—';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function getApprovalStatus(action?: string) {
-    switch (action) {
-        case 'approved':
-            return {
-                label: 'Approved',
-                className: 'text-emerald-700',
-                icon: CheckCircle2,
-                iconClass:
-                    'border-emerald-200 bg-emerald-50',
-            };
-
-        case 'rejected':
-            return {
-                label: 'Rejected',
-                className: 'text-red-700',
-                icon: XCircle,
-                iconClass:
-                    'border-red-200 bg-red-50',
-            };
-
-        case 'returned':
-            return {
-                label: 'Returned',
-                className: 'text-orange-700',
-                icon: Clock3,
-                iconClass:
-                    'border-orange-200 bg-orange-50',
-            };
-
-        default:
-            return {
-                label: 'Pending',
-                className: 'text-amber-700',
-                icon: Clock3,
-                iconClass:
-                    'border-amber-200 bg-amber-50',
-            };
-    }
+function normalizeSchedule(value?: string): ScheduleType {
+    return value === 'half_day_am' || value === 'half_day_pm'
+        ? value
+        : 'full_day';
 }
-
-/*
-|--------------------------------------------------------------------------
-| Initials
-|--------------------------------------------------------------------------
-*/
-
-function getInitials(name?: string | null) {
-    if (!name) {
-        return '—';
-    }
-
-    const parts = name
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
-
-    if (parts.length === 0) {
-        return '—';
-    }
-
-    if (parts.length === 1) {
-        return parts[0]
-            .substring(0, 2)
-            .toUpperCase();
-    }
-
-    return `${parts[0][0]}${parts[parts.length - 1][0]}`
-        .toUpperCase();
-}
-
-/*
-|--------------------------------------------------------------------------
-| Reusable UI Components
-|--------------------------------------------------------------------------
-*/
 
 function SectionHeader({
     icon: Icon,
@@ -423,17 +350,15 @@ function SectionHeader({
     description: string;
 }) {
     return (
-        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                <Icon className="h-4 w-4 text-slate-600" />
-            </div>
-
+        <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eaf3fb] text-[#28658f]">
+                <Icon aria-hidden="true" className="h-4 w-4" />
+            </span>
             <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-slate-900">
+                <h2 className="text-sm font-semibold text-[#17366b]">
                     {title}
                 </h2>
-
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-1 text-xs leading-5 text-slate-500">
                     {description}
                 </p>
             </div>
@@ -453,19 +378,19 @@ function DetailItem({
     emphasis?: boolean;
 }) {
     return (
-        <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                 {label}
             </p>
-
             <p
-                className={`mt-1.5 ${
-                    mono
+                className={
+                    'mt-1.5 break-words text-slate-800 ' +
+                    (mono
                         ? 'font-mono text-xs'
                         : emphasis
                           ? 'text-sm font-semibold'
-                          : 'text-sm font-medium'
-                } text-slate-800`}
+                          : 'text-sm font-medium')
+                }
             >
                 {value}
             </p>
@@ -484,56 +409,21 @@ function SidebarDetail({
 }) {
     return (
         <div className="py-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                 {label}
             </p>
-
-            <div className="mt-1.5 flex items-center gap-2">
+            <div className="mt-1.5 flex items-start gap-2">
                 {Icon && (
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <Icon
+                        aria-hidden="true"
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400"
+                    />
                 )}
-
-                <p className="text-sm font-medium text-slate-700">
+                <p className="break-words text-sm font-medium text-slate-700">
                     {value}
                 </p>
             </div>
         </div>
-    );
-}
-
-function FieldLabel({
-    children,
-    required = false,
-}: {
-    children: ReactNode;
-    required?: boolean;
-}) {
-    return (
-        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-            {children}
-
-            {required && (
-                <span className="ml-1 text-red-500">
-                    *
-                </span>
-            )}
-        </label>
-    );
-}
-
-function FieldError({
-    message,
-}: {
-    message?: string;
-}) {
-    if (!message) {
-        return null;
-    }
-
-    return (
-        <p className="mt-1.5 text-xs font-medium text-red-600">
-            {message}
-        </p>
     );
 }
 
@@ -547,17 +437,15 @@ function MetricCard({
     icon: typeof CalendarDays;
 }) {
     return (
-        <div className="flex items-center gap-3 px-5 py-4 sm:px-6">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                <Icon className="h-4 w-4 text-slate-500" />
-            </div>
-
+        <div className="flex min-w-0 items-center gap-3 px-4 py-4 sm:px-5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#eaf3fb] text-[#28658f]">
+                <Icon aria-hidden="true" className="h-4 w-4" />
+            </span>
             <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                     {label}
                 </p>
-
-                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                <p className="mt-1 truncate text-sm font-semibold text-[#17366b]">
                     {value}
                 </p>
             </div>
@@ -565,742 +453,576 @@ function MetricCard({
     );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Main Component
-|--------------------------------------------------------------------------
-*/
+function FieldLabel({
+    children,
+    htmlFor,
+    required = false,
+}: {
+    children: ReactNode;
+    htmlFor?: string;
+    required?: boolean;
+}) {
+    return (
+        <label
+            htmlFor={htmlFor}
+            className="mb-1.5 block text-sm font-medium text-slate-800"
+        >
+            {children}
+            {required && (
+                <>
+                    <span aria-hidden="true" className="ml-1 text-rose-600">
+                        *
+                    </span>
+                    <span className="sr-only"> required</span>
+                </>
+            )}
+        </label>
+    );
+}
+
+function FieldError({ message }: { message?: string }) {
+    return message ? (
+        <p role="alert" className="mt-1.5 text-xs font-medium text-rose-700">
+            {message}
+        </p>
+    ) : null;
+}
+
+function StatusBadge({ status }: { status: ReturnType<typeof getStatus> }) {
+    const StatusIcon = status.icon;
+    return (
+        <span
+            className={
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ' +
+                status.className
+            }
+        >
+            <StatusIcon aria-hidden="true" className="h-3.5 w-3.5" />
+            {status.label}
+        </span>
+    );
+}
 
 export default function View({
     application,
     leaveTypes = [],
     editing: initialEditing = false,
 }: Props) {
-    const [editing, setEditing] =
-        useState(initialEditing);
-
-    const status = getStatus(
-        application.status,
-    );
-
+    const [editing, setEditing] = useState(initialEditing);
+    const status = getStatus(application.status);
     const StatusIcon = status.icon;
-
-    const approvals = Array.isArray(
-        application.approvals,
-    )
-        ? application.approvals
-        : [];
-
-    const employee =
-        application.employee;
-
-    const leaveType =
-        application.leave_type;
-
-    /*
-    |--------------------------------------------------------------------------
-    | Edit Permission
-    |--------------------------------------------------------------------------
-    |
-    | Only draft and returned applications can
-    | be modified.
-    |
-    */
-
+    const approvals = [...(application.approvals ?? [])].sort(
+        (a, b) => a.step_order - b.step_order,
+    );
+    const employee = application.employee;
+    const leaveType = application.leave_type;
     const canEdit =
-        application.status === 'draft' ||
-        application.status === 'returned';
+        application.status === 'draft' || application.status === 'returned';
 
-    /*
-    |--------------------------------------------------------------------------
-    | Form
-    |--------------------------------------------------------------------------
-    */
-
-    const form = useForm({
+    const form = useForm<FormData>({
         leave_type_id: application.leave_type_id
             ? String(application.leave_type_id)
             : '',
-
-        start_date: application.start_date
-            ? application.start_date.substring(0, 10)
-            : '',
-
-        end_date: application.end_date
-            ? application.end_date.substring(0, 10)
-            : '',
-
-        schedule_type:
-            application.schedule_type ||
-            'full_day',
-
-        reason:
-            application.reason || '',
-
-        attachment: null as File | null,
+        start_date: application.start_date?.substring(0, 10) ?? '',
+        end_date: application.end_date?.substring(0, 10) ?? '',
+        schedule_type: normalizeSchedule(application.schedule_type),
+        reason: application.reason ?? '',
+        attachment: null,
     });
 
-    /*
-    |--------------------------------------------------------------------------
-    | Submit Edit
-    |--------------------------------------------------------------------------
-    */
-
-    const handleSubmit = (
-        event: FormEvent,
-    ) => {
-        event.preventDefault();
-
-        form.transform((data) => ({
-            ...data,
-            leave_type_id:
-                Number(data.leave_type_id),
-        }));
-
-        form.put(
-            `/leave/applications/${application.id}`,
-            {
-                forceFormData: true,
-
-                onSuccess: () => {
-                    setEditing(false);
-                },
-            },
-        );
+    const cancelEdit = () => {
+        form.reset();
+        form.clearErrors();
+        setEditing(false);
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | Render
-    |--------------------------------------------------------------------------
-    */
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        form.transform((data) => ({
+            ...data,
+            leave_type_id: Number(data.leave_type_id),
+        }));
+        form.put('/leave/applications/' + application.id, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => setEditing(false),
+        });
+    };
+
+    const downloadUrl =
+        '/leave/applications/' + application.id + '/download';
+    const canShowEditForm = editing && canEdit;
 
     return (
         <>
-            <Head
-                title={`Leave ${application.application_no}`}
-            />
+            <Head title={'Leave ' + application.application_no} />
 
-            <div className="min-h-screen bg-[#f7f9fb]">
-                <div className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+            <div className="min-h-screen bg-[#f4f7fb] text-slate-900">
+                <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+                    <Link
+                        href="/leave/applications"
+                        className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-medium text-slate-600 transition-colors hover:text-[#17366b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2"
+                    >
+                        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                        Leave applications
+                    </Link>
 
-                    {/* Breadcrumb */}
-
-                    <div className="mb-5">
-                        <Link
-                            href="/leave/applications"
-                            className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-
-                            Leave Applications
-                        </Link>
-                    </div>
-
-                    {/* Header */}
-
-                    <section className="relative mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
+                    <header className="relative mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
                         <div
-                            className={`absolute inset-x-0 top-0 h-1 ${status.accent}`}
+                            aria-hidden="true"
+                            className={'absolute inset-x-0 top-0 h-1 ' + status.accent}
                         />
-
-                        <div className="px-5 py-6 sm:px-7 sm:py-7">
-                            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-
-                                <div className="min-w-0">
-
-                                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                                        <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                                            Leave Application
-                                        </span>
-
-                                        <span className="text-slate-300">
-                                            /
-                                        </span>
-
-                                        <span className="font-mono text-xs font-medium text-slate-500">
-                                            {application.application_no}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                                            {leaveType?.name ??
-                                                'Leave Application'}
-                                        </h1>
-
-                                        <span
-                                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}
-                                        >
-                                            <StatusIcon className="h-3.5 w-3.5" />
-
-                                            {status.label}
-                                        </span>
-                                    </div>
-
-                                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                                        {status.description}
-                                    </p>
+                        <div className="flex flex-col gap-5 p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="min-w-0">
+                                <div className="mb-3 flex flex-wrap items-center gap-2">
+                                    <span className="rounded-md bg-[#f1f5f9] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-600">
+                                        Leave application
+                                    </span>
+                                    <span aria-hidden="true" className="text-slate-300">
+                                        /
+                                    </span>
+                                    <span className="break-all font-mono text-xs font-medium text-slate-600">
+                                        {application.application_no}
+                                    </span>
                                 </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf3fb] text-[#28658f]">
+                                        <CalendarDays
+                                            aria-hidden="true"
+                                            className="h-5 w-5"
+                                        />
+                                    </span>
+                                    <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-[#17366b] sm:text-3xl">
+                                        {leaveType?.name ?? 'Leave application'}
+                                    </h1>
+                                    <StatusBadge status={status} />
+                                </div>
+                                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                                    {status.description}
+                                </p>
+                            </div>
 
-                                {/* Actions */}
-
-                                <div className="flex shrink-0 flex-wrap items-center gap-2">
-
-                                    {application.attachment_path && (
-                                        <Button
-                                            asChild
-                                            variant="outline"
-                                            className="border-slate-200 bg-white shadow-none"
-                                        >
-                                            <a
-                                                href={`/leave/applications/${application.id}/download`}
-                                            >
-                                                <Download className="mr-2 h-4 w-4" />
-
-                                                Download
-                                            </a>
-                                        </Button>
-                                    )}
-
-                                    {canEdit &&
-                                        !editing && (
-                                            <Button
-                                                type="button"
-                                                onClick={() =>
-                                                    setEditing(
-                                                        true,
-                                                    )
-                                                }
-                                                className="bg-[#4389BC] shadow-sm hover:bg-[#3575A4]"
-                                            >
-                                                <Edit3 className="mr-2 h-4 w-4" />
-
-                                                Edit Application
-                                            </Button>
-                                        )}
-
+                            <div className="flex flex-wrap items-center gap-2">
+                                {application.attachment_path && (
                                     <Button
                                         asChild
                                         variant="outline"
-                                        className="border-slate-200 bg-white shadow-none"
+                                        className="min-h-10 rounded-lg border-slate-300 bg-white"
                                     >
-                                        <Link href="/leave/applications">
-                                            <ArrowLeft className="mr-2 h-4 w-4" />
-
-                                            Applications
-                                        </Link>
+                                        <a href={downloadUrl}>
+                                            <Download
+                                                aria-hidden="true"
+                                                className="mr-2 h-4 w-4"
+                                            />
+                                            Download file
+                                        </a>
                                     </Button>
-                                </div>
+                                )}
+                                {canEdit && !editing && (
+                                    <Button
+                                        type="button"
+                                        onClick={() => setEditing(true)}
+                                        className="min-h-10 rounded-lg bg-[#17366b] text-white hover:bg-[#102950]"
+                                    >
+                                        <Edit3
+                                            aria-hidden="true"
+                                            className="mr-2 h-4 w-4"
+                                        />
+                                        Edit application
+                                    </Button>
+                                )}
+                                {canShowEditForm && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={cancelEdit}
+                                        disabled={form.processing}
+                                        className="min-h-10 rounded-lg border-slate-300 bg-white"
+                                    >
+                                        <X
+                                            aria-hidden="true"
+                                            className="mr-2 h-4 w-4"
+                                        />
+                                        Cancel editing
+                                    </Button>
+                                )}
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    className="min-h-10 rounded-lg border-slate-300 bg-white"
+                                >
+                                    <Link href="/leave/applications">
+                                        Applications
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
-                    </section>
+                    </header>
 
-                    {/* ==========================================================
-                        EDIT MODE
-                    =========================================================== */}
-
-                    {editing && canEdit ? (
+                    {canShowEditForm ? (
                         <form
                             onSubmit={handleSubmit}
+                            encType="multipart/form-data"
                             className="space-y-6"
                         >
-
-                            {/* Edit Notice */}
-
-                            <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3.5">
-                                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white">
-                                    <Info className="h-4 w-4 text-blue-600" />
-                                </div>
-
+                            <div className="flex items-start gap-3 rounded-xl border border-[#dce8f2] bg-[#f7fbff] p-4">
+                                <Info
+                                    aria-hidden="true"
+                                    className="mt-0.5 h-4 w-4 shrink-0 text-[#28658f]"
+                                />
                                 <div>
-                                    <p className="text-sm font-semibold text-blue-900">
+                                    <p className="text-sm font-semibold text-[#17366b]">
                                         Editing application
                                     </p>
-
-                                    <p className="mt-0.5 text-xs leading-5 text-blue-700">
-                                        Update the required details
-                                        below. Saving your changes
-                                        does not automatically approve
-                                        the application.
+                                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                                        Save your updated details when ready.
+                                        Editing does not approve the request.
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Edit Card */}
-
-                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
-                                <div className="border-b border-slate-100 px-5 py-5 sm:px-7">
-
-                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-                                        <div>
-                                            <div className="flex items-center gap-2">
-
-                                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4389BC]/10">
-                                                    <Edit3 className="h-4 w-4 text-[#4389BC]" />
-                                                </div>
-
-                                                <h2 className="text-sm font-semibold text-slate-900">
-                                                    Application Details
-                                                </h2>
-                                            </div>
-
-                                            <p className="mt-2 text-xs text-slate-500">
-                                                Modify the leave request
-                                                information below.
-                                            </p>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() =>
-                                                    setEditing(
-                                                        false,
-                                                    )
-                                                }
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="border-slate-200 bg-white"
-                                            >
-                                                <X className="mr-2 h-4 w-4" />
-
-                                                Cancel
-                                            </Button>
-
-                                            <Button
-                                                type="submit"
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="bg-[#4389BC] hover:bg-[#3575A4]"
-                                            >
-                                                <Save className="mr-2 h-4 w-4" />
-
-                                                {form.processing
-                                                    ? 'Saving...'
-                                                    : 'Save Changes'}
-                                            </Button>
-                                        </div>
+                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                                <SectionHeader
+                                    icon={Edit3}
+                                    title="Application details"
+                                    description="Update the leave request information and save your changes."
+                                />
+                                <div className="grid gap-x-5 gap-y-5 p-4 sm:grid-cols-2 sm:p-6">
+                                    <div className="space-y-1.5">
+                                        <FieldLabel
+                                            htmlFor="leave_type_id"
+                                            required
+                                        >
+                                            Leave type
+                                        </FieldLabel>
+                                        <select
+                                            id="leave_type_id"
+                                            required
+                                            value={form.data.leave_type_id}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'leave_type_id',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={form.processing}
+                                            aria-invalid={Boolean(
+                                                form.errors.leave_type_id,
+                                            )}
+                                            className={
+                                                'h-11 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#4389bc] focus:ring-4 focus:ring-[#4389bc]/10 disabled:bg-slate-50 ' +
+                                                (form.errors.leave_type_id
+                                                    ? 'border-rose-400'
+                                                    : 'border-slate-300')
+                                            }
+                                        >
+                                            <option value="">
+                                                Select leave type
+                                            </option>
+                                            {leaveTypes.map((type) => (
+                                                <option
+                                                    key={type.id}
+                                                    value={type.id}
+                                                >
+                                                    {type.name}
+                                                    {type.code
+                                                        ? ' (' + type.code + ')'
+                                                        : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <FieldError
+                                            message={form.errors.leave_type_id}
+                                        />
                                     </div>
-                                </div>
 
-                                <div className="p-5 sm:p-7">
-
-                                    <div className="grid gap-6 lg:grid-cols-2">
-
-                                        {/* Leave Type */}
-
-                                        <div>
-                                            <FieldLabel required>
-                                                Leave Type
-                                            </FieldLabel>
-
-                                            <select
-                                                value={
-                                                    form
-                                                        .data
-                                                        .leave_type_id
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    form.setData(
-                                                        'leave_type_id',
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#4389BC] focus:ring-4 focus:ring-[#4389BC]/10 disabled:bg-slate-50"
-                                            >
-                                                <option value="">
-                                                    Select leave type
-                                                </option>
-
-                                                {leaveTypes.map(
-                                                    (
-                                                        type,
-                                                    ) => (
-                                                        <option
-                                                            key={
-                                                                type.id
-                                                            }
-                                                            value={
-                                                                type.id
-                                                            }
-                                                        >
-                                                            {
-                                                                type.name
-                                                            }
-
-                                                            {type.code
-                                                                ? ` (${type.code})`
-                                                                : ''}
-                                                        </option>
+                                    <div className="space-y-1.5">
+                                        <FieldLabel
+                                            htmlFor="schedule_type"
+                                            required
+                                        >
+                                            Schedule
+                                        </FieldLabel>
+                                        <select
+                                            id="schedule_type"
+                                            required
+                                            value={form.data.schedule_type}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'schedule_type',
+                                                    normalizeSchedule(
+                                                        event.target.value,
                                                     ),
-                                                )}
-                                            </select>
+                                                )
+                                            }
+                                            disabled={form.processing}
+                                            aria-invalid={Boolean(
+                                                form.errors.schedule_type,
+                                            )}
+                                            className={
+                                                'h-11 w-full rounded-lg border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#4389bc] focus:ring-4 focus:ring-[#4389bc]/10 disabled:bg-slate-50 ' +
+                                                (form.errors.schedule_type
+                                                    ? 'border-rose-400'
+                                                    : 'border-slate-300')
+                                            }
+                                        >
+                                            <option value="full_day">
+                                                Full day
+                                            </option>
+                                            <option value="half_day_am">
+                                                Half day · Morning
+                                            </option>
+                                            <option value="half_day_pm">
+                                                Half day · Afternoon
+                                            </option>
+                                        </select>
+                                        <FieldError
+                                            message={form.errors.schedule_type}
+                                        />
+                                    </div>
 
-                                            <FieldError
-                                                message={
-                                                    form
-                                                        .errors
-                                                        .leave_type_id
-                                                }
-                                            />
-                                        </div>
+                                    <div className="space-y-1.5">
+                                        <FieldLabel
+                                            htmlFor="start_date"
+                                            required
+                                        >
+                                            Start date
+                                        </FieldLabel>
+                                        <Input
+                                            id="start_date"
+                                            type="date"
+                                            required
+                                            value={form.data.start_date}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'start_date',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={form.processing}
+                                            aria-invalid={Boolean(
+                                                form.errors.start_date,
+                                            )}
+                                            className={
+                                                'h-11 rounded-lg shadow-none focus-visible:ring-[#4389bc] ' +
+                                                (form.errors.start_date
+                                                    ? 'border-rose-400'
+                                                    : 'border-slate-300')
+                                            }
+                                        />
+                                        <FieldError
+                                            message={form.errors.start_date}
+                                        />
+                                    </div>
 
-                                        {/* Schedule */}
+                                    <div className="space-y-1.5">
+                                        <FieldLabel
+                                            htmlFor="end_date"
+                                            required
+                                        >
+                                            End date
+                                        </FieldLabel>
+                                        <Input
+                                            id="end_date"
+                                            type="date"
+                                            required
+                                            min={form.data.start_date || undefined}
+                                            value={form.data.end_date}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'end_date',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={form.processing}
+                                            aria-invalid={Boolean(
+                                                form.errors.end_date,
+                                            )}
+                                            className={
+                                                'h-11 rounded-lg shadow-none focus-visible:ring-[#4389bc] ' +
+                                                (form.errors.end_date
+                                                    ? 'border-rose-400'
+                                                    : 'border-slate-300')
+                                            }
+                                        />
+                                        <FieldError
+                                            message={form.errors.end_date}
+                                        />
+                                    </div>
 
-                                        <div>
-                                            <FieldLabel required>
-                                                Schedule
-                                            </FieldLabel>
-
-                                            <select
-                                                value={
-                                                    form
-                                                        .data
-                                                        .schedule_type
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    form.setData(
-                                                        'schedule_type',
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#4389BC] focus:ring-4 focus:ring-[#4389BC]/10 disabled:bg-slate-50"
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <div className="flex items-end justify-between gap-3">
+                                            <FieldLabel
+                                                htmlFor="reason"
+                                                required
                                             >
-                                                <option value="full_day">
-                                                    Full Day
-                                                </option>
-
-                                                <option value="half_day_am">
-                                                    Half Day — Morning
-                                                </option>
-
-                                                <option value="half_day_pm">
-                                                    Half Day — Afternoon
-                                                </option>
-                                            </select>
-
-                                            <FieldError
-                                                message={
-                                                    form
-                                                        .errors
-                                                        .schedule_type
-                                                }
-                                            />
-                                        </div>
-
-                                        {/* Start Date */}
-
-                                        <div>
-                                            <FieldLabel required>
-                                                Start Date
+                                                Reason for leave
                                             </FieldLabel>
-
-                                            <input
-                                                type="date"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .start_date
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    form.setData(
-                                                        'start_date',
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#4389BC] focus:ring-4 focus:ring-[#4389BC]/10 disabled:bg-slate-50"
-                                            />
-
-                                            <FieldError
-                                                message={
-                                                    form
-                                                        .errors
-                                                        .start_date
-                                                }
-                                            />
+                                            <span className="shrink-0 text-xs tabular-nums text-slate-500">
+                                                {form.data.reason.length}/2000
+                                            </span>
                                         </div>
+                                        <Textarea
+                                            id="reason"
+                                            required
+                                            rows={5}
+                                            maxLength={2000}
+                                            value={form.data.reason}
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'reason',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={form.processing}
+                                            placeholder="Enter the reason for this leave request."
+                                            aria-invalid={Boolean(
+                                                form.errors.reason,
+                                            )}
+                                            className={
+                                                'min-h-28 resize-y rounded-lg leading-6 shadow-none focus-visible:ring-[#4389bc] ' +
+                                                (form.errors.reason
+                                                    ? 'border-rose-400'
+                                                    : 'border-slate-300')
+                                            }
+                                        />
+                                        <FieldError
+                                            message={form.errors.reason}
+                                        />
+                                    </div>
 
-                                        {/* End Date */}
-
-                                        <div>
-                                            <FieldLabel required>
-                                                End Date
+                                    <div className="space-y-2 sm:col-span-2">
+                                        <div className="flex flex-wrap items-end justify-between gap-2">
+                                            <FieldLabel htmlFor="attachment">
+                                                Supporting document
                                             </FieldLabel>
-
-                                            <input
-                                                type="date"
-                                                value={
-                                                    form
-                                                        .data
-                                                        .end_date
-                                                }
-                                                min={
-                                                    form
-                                                        .data
-                                                        .start_date ||
-                                                    undefined
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    form.setData(
-                                                        'end_date',
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#4389BC] focus:ring-4 focus:ring-[#4389BC]/10 disabled:bg-slate-50"
-                                            />
-
-                                            <FieldError
-                                                message={
-                                                    form
-                                                        .errors
-                                                        .end_date
-                                                }
-                                            />
+                                            <span className="text-xs text-slate-500">
+                                                Maximum file size: 5 MB
+                                            </span>
                                         </div>
-
-                                        {/* Reason */}
-
-                                        <div className="lg:col-span-2">
-
-                                            <div className="flex items-center justify-between">
-
-                                                <FieldLabel required>
-                                                    Reason for Leave
-                                                </FieldLabel>
-
-                                                <span className="text-[11px] text-slate-400">
-                                                    {
-                                                        form
-                                                            .data
-                                                            .reason
-                                                            .length
-                                                    }
-                                                    /2000
-                                                </span>
-                                            </div>
-
-                                            <textarea
-                                                value={
-                                                    form
-                                                        .data
-                                                        .reason
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    form.setData(
-                                                        'reason',
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
-                                                rows={6}
-                                                maxLength={2000}
-                                                placeholder="Enter the reason for this leave request..."
-                                                disabled={
-                                                    form.processing
-                                                }
-                                                className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3.5 py-3 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#4389BC] focus:ring-4 focus:ring-[#4389BC]/10 disabled:bg-slate-50"
-                                            />
-
-                                            <FieldError
-                                                message={
-                                                    form
-                                                        .errors
-                                                        .reason
-                                                }
-                                            />
-                                        </div>
-
-                                        {/* Attachment */}
-
-                                        <div className="lg:col-span-2">
-
-                                            <FieldLabel>
-                                                Supporting Document
-                                            </FieldLabel>
-
-                                            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-4">
-
-                                                {application.attachment_path && (
-                                                    <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-3.5">
-
-                                                        <div className="flex min-w-0 items-center gap-3">
-
-                                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                                                                <FileText className="h-4 w-4 text-slate-500" />
-                                                            </div>
-
-                                                            <div className="min-w-0">
-
-                                                                <p className="text-sm font-medium text-slate-800">
-                                                                    Current attachment
-                                                                </p>
-
-                                                                <a
-                                                                    href={`/leave/applications/${application.id}/download`}
-                                                                    className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-[#4389BC] hover:underline"
-                                                                >
-                                                                    <Download className="h-3.5 w-3.5" />
-
-                                                                    Download current document
-                                                                </a>
-
-                                                            </div>
-                                                        </div>
+                                        {application.attachment_path && (
+                                            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#28658f] ring-1 ring-slate-200">
+                                                        <FileText
+                                                            aria-hidden="true"
+                                                            className="h-4 w-4"
+                                                        />
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-semibold text-slate-800">
+                                                            Current document
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Download it or select
+                                                            a replacement below.
+                                                        </p>
                                                     </div>
-                                                )}
-
-                                                <input
-                                                    type="file"
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        form.setData(
-                                                            'attachment',
-                                                            event
-                                                                .target
-                                                                .files?.[0] ??
-                                                            null,
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        form.processing
-                                                    }
-                                                    className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
-                                                />
-
-                                                <p className="mt-2 text-xs text-slate-400">
-                                                    Maximum file size:
-                                                    5 MB.
-                                                </p>
-
-                                                <FieldError
-                                                    message={
-                                                        form
-                                                            .errors
-                                                            .attachment
-                                                    }
-                                                />
+                                                </div>
+                                                <a
+                                                    href={downloadUrl}
+                                                    className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-[#28658f] hover:underline"
+                                                >
+                                                    <Download
+                                                        aria-hidden="true"
+                                                        className="h-4 w-4"
+                                                    />
+                                                    Download current file
+                                                </a>
                                             </div>
-                                        </div>
+                                        )}
+                                        {form.data.attachment && (
+                                            <p className="break-all text-xs font-medium text-[#28658f]">
+                                                New file: {form.data.attachment.name}
+                                            </p>
+                                        )}
+                                        <Input
+                                            id="attachment"
+                                            type="file"
+                                            onChange={(event) =>
+                                                form.setData(
+                                                    'attachment',
+                                                    event.target.files?.[0] ??
+                                                        null,
+                                                )
+                                            }
+                                            disabled={form.processing}
+                                            aria-invalid={Boolean(
+                                                form.errors.attachment,
+                                            )}
+                                            className="h-auto cursor-pointer rounded-lg border-slate-300 py-2 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-[#eaf3fb] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#17366b] hover:file:bg-[#dcebf7] focus-visible:ring-[#4389bc]"
+                                        />
+                                        <FieldError
+                                            message={form.errors.attachment}
+                                        />
                                     </div>
                                 </div>
                             </section>
 
-                            {/* Edit Footer */}
-
-                            <div className="flex justify-end gap-2">
-
+                            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() =>
-                                        setEditing(
-                                            false,
-                                        )
-                                    }
-                                    disabled={
-                                        form.processing
-                                    }
-                                    className="border-slate-200 bg-white"
+                                    onClick={cancelEdit}
+                                    disabled={form.processing}
+                                    className="min-h-11 rounded-lg border-slate-300 bg-white px-5"
                                 >
                                     Cancel
                                 </Button>
-
                                 <Button
                                     type="submit"
-                                    disabled={
-                                        form.processing
-                                    }
-                                    className="bg-[#4389BC] hover:bg-[#3575A4]"
+                                    disabled={form.processing}
+                                    className="min-h-11 rounded-lg bg-[#17366b] px-5 text-white hover:bg-[#102950]"
                                 >
-                                    <Save className="mr-2 h-4 w-4" />
-
+                                    <Save
+                                        aria-hidden="true"
+                                        className="mr-2 h-4 w-4"
+                                    />
                                     {form.processing
-                                        ? 'Saving Changes...'
-                                        : 'Save Changes'}
+                                        ? 'Saving changes…'
+                                        : 'Save changes'}
                                 </Button>
                             </div>
                         </form>
                     ) : (
                         <>
-                            {/* Summary */}
-
-                            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
-                                <div className="grid divide-y divide-slate-100 md:grid-cols-4 md:divide-x md:divide-y-0">
-
+                            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                                <div className="grid divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
                                     <MetricCard
-                                        label="Application Status"
+                                        label="Application status"
                                         value={status.label}
                                         icon={StatusIcon}
                                     />
-
                                     <MetricCard
-                                        label="Leave Duration"
-                                        value={`${application.total_days} day${
-                                            Number(
-                                                application.total_days,
-                                            ) === 1
+                                        label="Leave duration"
+                                        value={
+                                            String(application.total_days) +
+                                            ' day' +
+                                            (Number(application.total_days) === 1
                                                 ? ''
-                                                : 's'
-                                        }`}
+                                                : 's')
+                                        }
                                         icon={CalendarDays}
                                     />
-
                                     <MetricCard
-                                        label="Leave Period"
-                                        value={`${formatShortDate(
-                                            application.start_date,
-                                        )} – ${formatShortDate(
-                                            application.end_date,
-                                        )}`}
+                                        label="Leave period"
+                                        value={
+                                            formatShortDate(
+                                                application.start_date,
+                                            ) +
+                                            ' – ' +
+                                            formatShortDate(
+                                                application.end_date,
+                                            )
+                                        }
                                         icon={CalendarDays}
                                     />
-
                                     <MetricCard
-                                        label="Workflow Step"
+                                        label="Workflow step"
                                         value={
                                             application.current_step
-                                                ? `Step ${application.current_step}`
+                                                ? 'Step ' +
+                                                  application.current_step
                                                 : 'Not assigned'
                                         }
                                         icon={ShieldCheck}
@@ -1308,117 +1030,86 @@ export default function View({
                                 </div>
                             </section>
 
-                            {/* Content */}
-
                             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-
-                                {/* Left */}
-
-                                <main className="min-w-0 space-y-6">
-
-                                    {/* Leave Details */}
-
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
+                                <main className="min-w-0 space-y-5">
+                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
                                         <SectionHeader
                                             icon={CalendarDays}
-                                            title="Leave Details"
-                                            description="Core information associated with this leave request."
+                                            title="Leave details"
+                                            description="Key dates and information for this request."
                                         />
-
-                                        <div className="grid gap-x-8 gap-y-7 p-5 sm:grid-cols-2 sm:p-7 lg:grid-cols-3">
-
+                                        <div className="grid gap-x-6 gap-y-6 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
                                             <DetailItem
-                                                label="Leave Type"
-                                                value={
-                                                    leaveType?.name ??
-                                                    '—'
-                                                }
+                                                label="Leave type"
+                                                value={leaveType?.name ?? '—'}
                                             />
-
                                             <DetailItem
-                                                label="Leave Code"
-                                                value={
-                                                    leaveType?.code ??
-                                                    '—'
-                                                }
+                                                label="Leave code"
+                                                value={leaveType?.code ?? '—'}
                                                 mono
                                             />
-
                                             <DetailItem
                                                 label="Schedule"
                                                 value={formatSchedule(
                                                     application.schedule_type,
                                                 )}
                                             />
-
                                             <DetailItem
-                                                label="Start Date"
+                                                label="Start date"
                                                 value={formatDate(
                                                     application.start_date,
                                                 )}
                                             />
-
                                             <DetailItem
-                                                label="End Date"
+                                                label="End date"
                                                 value={formatDate(
                                                     application.end_date,
                                                 )}
                                             />
-
                                             <DetailItem
-                                                label="Total Leave"
-                                                value={`${application.total_days} day${
-                                                    Number(
+                                                label="Total leave"
+                                                value={
+                                                    String(
+                                                        application.total_days,
+                                                    ) +
+                                                    ' day' +
+                                                    (Number(
                                                         application.total_days,
                                                     ) === 1
                                                         ? ''
-                                                        : 's'
-                                                }`}
+                                                        : 's')
+                                                }
                                                 emphasis
                                             />
-
                                             <DetailItem
-                                                label="Date Filed"
+                                                label="Date filed"
                                                 value={formatDate(
                                                     application.date_filed,
                                                 )}
                                             />
-
                                             <DetailItem
                                                 label="Submitted"
                                                 value={formatDateTime(
                                                     application.submitted_at,
                                                 )}
                                             />
-
                                             <DetailItem
-                                                label="Application No."
-                                                value={
-                                                    application.application_no
-                                                }
+                                                label="Application number"
+                                                value={application.application_no}
                                                 mono
                                             />
                                         </div>
                                     </section>
 
-                                    {/* Reason */}
-
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
+                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
                                         <SectionHeader
                                             icon={FileText}
-                                            title="Reason for Leave"
-                                            description="Employee-provided justification for the request."
+                                            title="Reason for leave"
+                                            description="Reason provided with this application."
                                         />
-
-                                        <div className="p-5 sm:p-7">
-
-                                            <div className="relative rounded-xl border border-slate-200 bg-slate-50/70 p-5">
-
-                                                <div className="absolute bottom-4 left-0 top-4 w-0.5 rounded-full bg-[#4389BC]" />
-
-                                                <p className="whitespace-pre-wrap pl-3 text-sm leading-7 text-slate-700">
+                                        <div className="p-5 sm:p-6">
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+                                                <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">
                                                     {application.reason ||
                                                         'No reason provided.'}
                                                 </p>
@@ -1426,133 +1117,119 @@ export default function View({
                                         </div>
                                     </section>
 
-                                    {/* Approval Workflow */}
-
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23-42,0.05)]">
-
+                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
                                         <SectionHeader
                                             icon={Users}
-                                            title="Approval Workflow"
+                                            title="Approval workflow"
                                             description={
-                                                application
-                                                    .approval_workflow
+                                                application.approval_workflow
                                                     ?.name ??
-                                                'Approval history and workflow activity.'
+                                                'Review the recorded approval activity.'
                                             }
                                         />
-
-                                        <div className="p-5 sm:p-7">
-
+                                        <div className="p-5 sm:p-6">
                                             {approvals.length === 0 ? (
-                                                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-14 text-center">
-
-                                                    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white">
-                                                        <Clock3 className="h-5 w-5 text-slate-400" />
-                                                    </div>
-
-                                                    <p className="mt-4 text-sm font-semibold text-slate-800">
-                                                        No approval activity
-                                                    </p>
-
-                                                    <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">
-                                                        No approval action
-                                                        records have been
-                                                        generated for this
-                                                        application yet.
+                                                <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-5 py-10 text-center">
+                                                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200">
+                                                        <Clock3
+                                                            aria-hidden="true"
+                                                            className="h-5 w-5"
+                                                        />
+                                                    </span>
+                                                    <h3 className="mt-3 text-sm font-semibold text-slate-800">
+                                                        No approval activity yet
+                                                    </h3>
+                                                    <p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">
+                                                        Approval updates will
+                                                        appear here when they
+                                                        are recorded.
                                                     </p>
                                                 </div>
                                             ) : (
-                                                <div className="space-y-0">
-
+                                                <ol className="space-y-0">
                                                     {approvals.map(
-                                                        (
-                                                            approval,
-                                                            index,
-                                                        ) => {
+                                                        (approval, index) => {
                                                             const approvalStatus =
                                                                 getApprovalStatus(
                                                                     approval.action,
                                                                 );
-
                                                             const ApprovalIcon =
                                                                 approvalStatus.icon;
-
                                                             const isLast =
                                                                 index ===
                                                                 approvals.length -
                                                                     1;
 
                                                             return (
-                                                                <div
+                                                                <li
                                                                     key={
                                                                         approval.id
                                                                     }
-                                                                    className="relative flex gap-4"
+                                                                    className="relative flex gap-3.5"
                                                                 >
-
                                                                     {!isLast && (
-                                                                        <div className="absolute left-[19px] top-10 h-[calc(100%-8px)] w-px bg-slate-200" />
+                                                                        <span
+                                                                            aria-hidden="true"
+                                                                            className="absolute bottom-0 left-[17px] top-9 w-px bg-slate-200"
+                                                                        />
                                                                     )}
-
-                                                                    <div
-                                                                        className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${approvalStatus.iconClass}`}
+                                                                    <span
+                                                                        className={
+                                                                            'relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ' +
+                                                                            approvalStatus.iconClass
+                                                                        }
                                                                     >
                                                                         <ApprovalIcon
-                                                                            className={`h-4 w-4 ${approvalStatus.className}`}
+                                                                            aria-hidden="true"
+                                                                            className={
+                                                                                'h-4 w-4 ' +
+                                                                                approvalStatus.className
+                                                                            }
                                                                         />
-                                                                    </div>
-
+                                                                    </span>
                                                                     <div
-                                                                        className={`min-w-0 flex-1 ${
-                                                                            !isLast
-                                                                                ? 'pb-8'
-                                                                                : ''
-                                                                        }`}
+                                                                        className={
+                                                                            'min-w-0 flex-1 ' +
+                                                                            (isLast
+                                                                                ? ''
+                                                                                : 'pb-5')
+                                                                        }
                                                                     >
-
-                                                                        <div className="rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-sm">
-
-                                                                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-
+                                                                        <article className="rounded-xl border border-slate-200 bg-white p-4">
+                                                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                                                 <div className="min-w-0">
-
                                                                                     <div className="flex flex-wrap items-center gap-2">
-
-                                                                                        <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                                                                                        <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">
                                                                                             Step{' '}
                                                                                             {
                                                                                                 approval.step_order
                                                                                             }
                                                                                         </span>
-
                                                                                         <span
-                                                                                            className={`text-xs font-semibold ${approvalStatus.className}`}
+                                                                                            className={
+                                                                                                'text-xs font-semibold ' +
+                                                                                                approvalStatus.className
+                                                                                            }
                                                                                         >
                                                                                             {
                                                                                                 approvalStatus.label
                                                                                             }
                                                                                         </span>
                                                                                     </div>
-
-                                                                                    <p className="mt-3 text-sm font-semibold text-slate-900">
-                                                                                        {approval
-                                                                                            .approver
+                                                                                    <p className="mt-3 text-sm font-semibold text-slate-800">
+                                                                                        {approval.approver
                                                                                             ?.name ??
-                                                                                            'Assigned Approver'}
+                                                                                            'Assigned approver'}
                                                                                     </p>
-
-                                                                                    <p className="mt-0.5 text-sm text-slate-500">
-                                                                                        {approval
-                                                                                            .approver
+                                                                                    <p className="mt-0.5 text-xs text-slate-500">
+                                                                                        {approval.approver
                                                                                             ?.position
                                                                                             ?.name ??
                                                                                             'Approver'}
                                                                                     </p>
-
-                                                                                    {approval
-                                                                                        .approver
+                                                                                    {approval.approver
                                                                                         ?.employee_number && (
-                                                                                        <p className="mt-1 font-mono text-[11px] text-slate-400">
+                                                                                        <p className="mt-1 font-mono text-[11px] text-slate-500">
                                                                                             {
                                                                                                 approval
                                                                                                     .approver
@@ -1561,13 +1238,10 @@ export default function View({
                                                                                         </p>
                                                                                     )}
                                                                                 </div>
-
                                                                                 <div className="shrink-0 sm:text-right">
-
-                                                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                                                                                        Action Date
+                                                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                                                                        Action date
                                                                                     </p>
-
                                                                                     <p className="mt-1 text-xs font-medium text-slate-600">
                                                                                         {formatDateTime(
                                                                                             approval.acted_at,
@@ -1575,263 +1249,177 @@ export default function View({
                                                                                     </p>
                                                                                 </div>
                                                                             </div>
-
                                                                             {approval.remarks && (
-                                                                                <div className="mt-4 border-t border-slate-100 pt-4">
-
-                                                                                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                                                                                <div className="mt-4 border-t border-slate-100 pt-3">
+                                                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                                                                                         Remarks
                                                                                     </p>
-
-                                                                                    <p className="text-sm leading-6 text-slate-600">
+                                                                                    <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
                                                                                         {
                                                                                             approval.remarks
                                                                                         }
                                                                                     </p>
                                                                                 </div>
                                                                             )}
-                                                                        </div>
+                                                                        </article>
                                                                     </div>
-                                                                </div>
+                                                                </li>
                                                             );
                                                         },
                                                     )}
-                                                </div>
+                                                </ol>
                                             )}
                                         </div>
                                     </section>
                                 </main>
 
-                                {/* Right Sidebar */}
-
-                                <aside className="space-y-6 xl:sticky xl:top-6">
-
-                                    {/* Employee Information */}
-
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
-                                        <div className="border-b border-slate-100 px-5 py-4">
-
-                                            <div className="flex items-center gap-3">
-
-                                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#4389BC]/10">
-                                                    <User className="h-4 w-4 text-[#4389BC]" />
-                                                </div>
-
-                                                <div>
-                                                    <h2 className="text-sm font-semibold text-slate-900">
-                                                        Employee Information
-                                                    </h2>
-
-                                                    <p className="mt-0.5 text-xs text-slate-500">
-                                                        Applicant details
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
+                                <aside className="space-y-5 xl:sticky xl:top-6">
+                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                                        <SectionHeader
+                                            icon={User}
+                                            title="Employee information"
+                                            description="Applicant details."
+                                        />
                                         <div className="p-5">
-
-                                            <div className="mb-5 flex items-center gap-3">
-
-                                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-semibold text-slate-600">
-                                                    {getInitials(
-                                                        employee?.name,
-                                                    )}
-                                                </div>
-
+                                            <div className="mb-4 flex min-w-0 items-center gap-3">
+                                                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#eaf3fb] text-sm font-semibold text-[#17366b]">
+                                                    {getInitials(employee?.name)}
+                                                </span>
                                                 <div className="min-w-0">
-
-                                                    <p className="truncate text-sm font-semibold text-slate-900">
-                                                        {employee?.name ??
-                                                            '—'}
+                                                    <p className="truncate text-sm font-semibold text-slate-800">
+                                                        {employee?.name ?? '—'}
                                                     </p>
-
-                                                    <p className="mt-0.5 font-mono text-[11px] text-slate-400">
+                                                    <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
                                                         {employee?.employee_number ??
                                                             'No employee number'}
                                                     </p>
                                                 </div>
                                             </div>
-
                                             <div className="divide-y divide-slate-100 border-t border-slate-100">
-
                                                 <SidebarDetail
                                                     label="Position"
                                                     value={
-                                                        employee
-                                                            ?.position
-                                                            ?.name ??
+                                                        employee?.position?.name ??
                                                         '—'
                                                     }
                                                 />
-
                                                 <SidebarDetail
-                                                    label="Organizational Unit"
+                                                    label="Organizational unit"
                                                     value={
                                                         employee
                                                             ?.organizational_unit
-                                                            ?.name ??
-                                                        '—'
+                                                            ?.name ?? '—'
                                                     }
-                                                    icon={
-                                                        Building2
-                                                    }
+                                                    icon={Building2}
                                                 />
-
                                                 <SidebarDetail
-                                                    label="Reporting Manager"
+                                                    label="Reporting manager"
                                                     value={
-                                                        employee
-                                                            ?.reports_to
-                                                            ?.name ??
-                                                        '—'
+                                                        employee?.reports_to
+                                                            ?.name ?? '—'
                                                     }
                                                 />
                                             </div>
                                         </div>
                                     </section>
 
-                                    {/* Submission */}
-
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
-                                        <div className="border-b border-slate-100 px-5 py-4">
-
-                                            <div className="flex items-center gap-3">
-
-                                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-                                                    <Info className="h-4 w-4 text-slate-600" />
-                                                </div>
-
-                                                <div>
-                                                    <h2 className="text-sm font-semibold text-slate-900">
-                                                        Submission
-                                                    </h2>
-
-                                                    <p className="mt-0.5 text-xs text-slate-500">
-                                                        Application metadata
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
+                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                                        <SectionHeader
+                                            icon={Info}
+                                            title="Submission"
+                                            description="Application record details."
+                                        />
                                         <div className="divide-y divide-slate-100 px-5">
-
                                             <SidebarDetail
-                                                label="Date Filed"
+                                                label="Date filed"
                                                 value={formatDate(
                                                     application.date_filed,
                                                 )}
                                             />
-
                                             <SidebarDetail
                                                 label="Submitted"
                                                 value={formatDateTime(
                                                     application.submitted_at,
                                                 )}
                                             />
-
-                                            <div className="py-4">
-
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                                                    Employee Confirmation
+                                            <div className="py-3.5">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                                                    Employee confirmation
                                                 </p>
-
                                                 <div className="mt-2 flex items-center gap-2">
-
                                                     {application.employee_confirmed ? (
                                                         <>
-                                                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-50">
-                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                            </div>
-
-                                                            <span className="text-sm font-medium text-emerald-700">
+                                                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                                                                <Check
+                                                                    aria-hidden="true"
+                                                                    className="h-3.5 w-3.5"
+                                                                />
+                                                            </span>
+                                                            <span className="text-sm font-medium text-emerald-800">
                                                                 Confirmed
                                                             </span>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-50">
-                                                                <Clock3 className="h-3.5 w-3.5 text-amber-600" />
-                                                            </div>
-
-                                                            <span className="text-sm font-medium text-amber-700">
+                                                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-50 text-amber-800">
+                                                                <Clock3
+                                                                    aria-hidden="true"
+                                                                    className="h-3.5 w-3.5"
+                                                                />
+                                                            </span>
+                                                            <span className="text-sm font-medium text-amber-800">
                                                                 Pending
                                                             </span>
                                                         </>
                                                     )}
                                                 </div>
-
                                                 {application.employee_confirmed_at && (
-                                                    <p className="mt-2 text-xs text-slate-400">
+                                                    <p className="mt-2 text-xs text-slate-500">
                                                         {formatDateTime(
                                                             application.employee_confirmed_at,
                                                         )}
                                                     </p>
                                                 )}
                                             </div>
-
                                             <SidebarDetail
-                                                label="Application Status"
-                                                value={
-                                                    status.label
-                                                }
+                                                label="Application status"
+                                                value={status.label}
                                             />
                                         </div>
                                     </section>
 
-                                    {/* Supporting Document */}
-
                                     {application.attachment_path && (
-                                        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
-
-                                            <div className="border-b border-slate-100 px-5 py-4">
-
-                                                <div className="flex items-center gap-3">
-
-                                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-                                                        <FileText className="h-4 w-4 text-slate-600" />
-                                                    </div>
-
-                                                    <div>
-                                                        <h2 className="text-sm font-semibold text-slate-900">
-                                                            Supporting Document
-                                                        </h2>
-
-                                                        <p className="mt-0.5 text-xs text-slate-500">
-                                                            Attached to this application
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
+                                        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                                            <SectionHeader
+                                                icon={FileText}
+                                                title="Supporting document"
+                                                description="Attached to this application."
+                                            />
                                             <div className="p-4">
-
                                                 <a
-                                                    href={`/leave/applications/${application.id}/download`}
-                                                    className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 transition-all hover:border-[#4389BC]/30 hover:bg-[#4389BC]/5"
+                                                    href={downloadUrl}
+                                                    className="group flex min-h-16 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 transition-colors hover:border-[#4389bc] hover:bg-[#f2f8fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2"
                                                 >
-
-                                                    <div className="flex min-w-0 items-center gap-3">
-
-                                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                                                            <FileText className="h-4 w-4 text-slate-500" />
-                                                        </div>
-
-                                                        <div className="min-w-0">
-
-                                                            <p className="truncate text-sm font-medium text-slate-700">
+                                                    <span className="flex min-w-0 items-center gap-3">
+                                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#28658f] ring-1 ring-slate-200">
+                                                            <FileText
+                                                                aria-hidden="true"
+                                                                className="h-4 w-4"
+                                                            />
+                                                        </span>
+                                                        <span className="min-w-0">
+                                                            <span className="block truncate text-sm font-semibold text-slate-800">
                                                                 Download attachment
-                                                            </p>
-
-                                                            <p className="mt-0.5 text-xs text-slate-400">
+                                                            </span>
+                                                            <span className="mt-0.5 block text-xs text-slate-500">
                                                                 Secure document download
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    <Download className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-y-0.5" />
+                                                            </span>
+                                                        </span>
+                                                    </span>
+                                                    <Download
+                                                        aria-hidden="true"
+                                                        className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-hover:translate-y-0.5"
+                                                    />
                                                 </a>
                                             </div>
                                         </section>
