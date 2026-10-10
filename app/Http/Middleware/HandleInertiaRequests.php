@@ -85,6 +85,12 @@ class HandleInertiaRequests extends Middleware
         |--------------------------------------------------------------------------
         | Shared Data
         |--------------------------------------------------------------------------
+        |
+        | These properties are available globally through:
+        |
+        | page.props.auth.user
+        |
+        |--------------------------------------------------------------------------
         */
 
         return [
@@ -92,6 +98,12 @@ class HandleInertiaRequests extends Middleware
 
             'auth' => [
                 'user' => [
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Basic User Information
+                    |--------------------------------------------------------------------------
+                    */
+
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
@@ -108,7 +120,29 @@ class HandleInertiaRequests extends Middleware
 
                     /*
                     |--------------------------------------------------------------------------
-                    | RBAC
+                    | Reporting Manager Eligibility
+                    |--------------------------------------------------------------------------
+                    |
+                    | Used by the frontend to determine whether the user
+                    | is eligible to act as a reporting manager.
+                    |
+                    */
+
+                    'can_be_reporting_manager' =>
+                        (bool) $user->can_be_reporting_manager,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Reporting Hierarchy
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'reports_to_user_id' =>
+                        $user->reports_to_user_id,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Role-Based Access Control
                     |--------------------------------------------------------------------------
                     */
 

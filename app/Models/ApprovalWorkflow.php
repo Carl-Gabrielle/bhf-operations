@@ -26,22 +26,17 @@ class ApprovalWorkflow extends Model
 
     public function steps(): HasMany
     {
-        return $this->hasMany(
-            ApprovalWorkflowStep::class
-        )->orderBy('step_order');
+        return $this->hasMany(ApprovalWorkflowStep::class)
+            ->orderBy('step_order');
     }
 
     public function positions(): HasMany
     {
-        return $this->hasMany(
-            ApprovalWorkflowPosition::class
-        );
+        return $this->hasMany(ApprovalWorkflowPosition::class);
     }
 
     public function leaveApplications(): HasMany
     {
-        return $this->hasMany(
-            LeaveApplication::class
-        );
+        return $this->hasMany(LeaveApplication::class);
     }
 }

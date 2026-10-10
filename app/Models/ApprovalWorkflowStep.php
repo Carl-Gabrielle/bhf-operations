@@ -45,6 +45,9 @@ class ApprovalWorkflowStep extends Model
 
     public function approvals(): HasMany
     {
-        return $this->hasMany(LeaveApproval::class);
+        return $this->hasMany(
+            LeaveApproval::class,
+            'approval_workflow_step_id'
+        );
     }
 }
