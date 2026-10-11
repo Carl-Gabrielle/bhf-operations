@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Leave\LeaveApplicationController;
+use App\Http\Controllers\Leave\LeaveApprovalController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,23 +15,45 @@ use Illuminate\Support\Facades\Route;
 |       ↓
 |   force.password.change
 |       ↓
-|   leave prefix
+|   leave prefix and name
 |
-| Resulting URLs:
+| Application URLs:
 |
-|   /leave/applications
-|   /leave/applications/create
-|   /leave/applications/{leaveApplication}
+|   GET    /leave/applications
+|   GET    /leave/applications/create
+|   POST   /leave/applications
+|   GET    /leave/applications/{leaveApplication}
+|   GET    /leave/applications/{leaveApplication}/edit
+|   PUT    /leave/applications/{leaveApplication}
+|   GET    /leave/applications/{leaveApplication}/download
 |
-| Resulting route names:
+| Approval URLs:
 |
-|   leave.applications.index
-|   leave.applications.create
-|   leave.applications.store
-|   leave.applications.show
-|   leave.applications.edit
-|   leave.applications.update
-|   leave.applications.download
+|   GET    /leave/approvals
+|   GET    /leave/approvals/{leaveApplication}
+|   POST   /leave/approvals/{leaveApplication}/approve
+|   POST   /leave/approvals/{leaveApplication}/reject
+|
+|--------------------------------------------------------------------------
+| Leave Application Route Names
+|--------------------------------------------------------------------------
+|
+| leave.applications.index
+| leave.applications.create
+| leave.applications.store
+| leave.applications.show
+| leave.applications.edit
+| leave.applications.update
+| leave.applications.download
+|
+|--------------------------------------------------------------------------
+| Leave Approval Route Names
+|--------------------------------------------------------------------------
+|
+| leave.approvals.index
+| leave.approvals.show
+| leave.approvals.approve
+| leave.approvals.reject
 |
 */
 
@@ -49,120 +72,150 @@ Route::prefix('applications')
         |--------------------------------------------------------------------------
         | List Leave Applications
         |--------------------------------------------------------------------------
-        |
-        | GET /leave/applications
-        |
         */
 
         Route::get('/', 'index')
             ->middleware('permission:leave.view')
             ->name('index');
 
-
         /*
         |--------------------------------------------------------------------------
         | Create Leave Application
         |--------------------------------------------------------------------------
-        |
-        | GET /leave/applications/create
-        |
-        | IMPORTANT:
-        | Static routes must be declared before wildcard routes.
-        |
         */
 
         Route::get('/create', 'create')
             ->middleware('permission:leave.create')
             ->name('create');
 
-
         /*
         |--------------------------------------------------------------------------
         | Store Leave Application
         |--------------------------------------------------------------------------
-        |
-        | POST /leave/applications
-        |
         */
 
         Route::post('/', 'store')
             ->middleware('permission:leave.create')
             ->name('store');
 
-
         /*
         |--------------------------------------------------------------------------
         | Download Leave Application
         |--------------------------------------------------------------------------
-        |
-        | GET /leave/applications/{leaveApplication}/download
-        |
         */
 
-        Route::get(
-            '/{leaveApplication}/download',
-            'download'
-        )
+        Route::get('/{leaveApplication}/download', 'download')
             ->middleware('permission:leave.view')
             ->name('download');
-
 
         /*
         |--------------------------------------------------------------------------
         | Edit Leave Application
         |--------------------------------------------------------------------------
-        |
-        | GET /leave/applications/{leaveApplication}/edit
-        |
         */
 
-        Route::get(
-            '/{leaveApplication}/edit',
-            'edit'
-        )
+        Route::get('/{leaveApplication}/edit', 'edit')
             ->middleware('permission:leave.view')
             ->name('edit');
-
 
         /*
         |--------------------------------------------------------------------------
         | Update Leave Application
         |--------------------------------------------------------------------------
         |
-        | PUT /leave/applications/{leaveApplication}
-        |
-        | This currently uses leave.view to preserve the permission
-        | structure of the existing application.
-        |
-        | Recommended future permission:
-        |
-        |     leave.update
+        | Retains the existing permission for compatibility.
+        | Consider introducing leave.update for stricter authorization.
         |
         */
 
-        Route::put(
-            '/{leaveApplication}',
-            'update'
-        )
+        Route::put('/{leaveApplication}', 'update')
             ->middleware('permission:leave.view')
             ->name('update');
-
 
         /*
         |--------------------------------------------------------------------------
         | Show Leave Application
         |--------------------------------------------------------------------------
+        */
+
+        Route::get('/{leaveApplication}', 'show')
+            ->middleware('permission:leave.view')
+            ->name('show');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Leave Approvals
+|--------------------------------------------------------------------------
+|
+| These routes are separate from employee-facing leave applications.
+|
+| The controller additionally checks:
+|
+|   - The authenticated user has an active account.
+|   - The user has the leave.approve permission.
+|   - The application has a pending approval assignment for that user.
+|
+*/
+
+Route::prefix('approvals')
+    ->name('approvals.')
+    ->controller(LeaveApprovalController::class)
+    ->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Approval Inbox
+        |--------------------------------------------------------------------------
         |
-        | GET /leave/applications/{leaveApplication}
-        |
-        | Keep this wildcard route LAST.
+        | GET /leave/approvals
+        | Route: leave.approvals.index
         |
         */
 
-        Route::get(
-            '/{leaveApplication}',
-            'show'
-        )
-            ->middleware('permission:leave.view')
+        Route::get('/', 'index')
+            ->middleware('permission:leave.approve')
+            ->name('index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Review Leave Application
+        |--------------------------------------------------------------------------
+        |
+        | GET /leave/approvals/{leaveApplication}
+        | Route: leave.approvals.show
+        |
+        */
+
+        Route::get('/{leaveApplication}', 'show')
+            ->middleware('permission:leave.approve')
             ->name('show');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Approve Leave Application
+        |--------------------------------------------------------------------------
+        |
+        | POST /leave/approvals/{leaveApplication}/approve
+        | Route: leave.approvals.approve
+        |
+        */
+
+        Route::post('/{leaveApplication}/approve', 'approve')
+            ->middleware('permission:leave.approve')
+            ->name('approve');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reject Leave Application
+        |--------------------------------------------------------------------------
+        |
+        | POST /leave/approvals/{leaveApplication}/reject
+        | Route: leave.approvals.reject
+        |
+        */
+
+        Route::post('/{leaveApplication}/reject', 'reject')
+            ->middleware('permission:leave.approve')
+            ->name('reject');
     });

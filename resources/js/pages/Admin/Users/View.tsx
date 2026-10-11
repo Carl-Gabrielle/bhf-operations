@@ -537,22 +537,8 @@ export default function ViewUser() {
         setLocalError(null);
         setFlashVisible(false);
 
-        // `transform()` mutates the form configuration and does not
-        // return the form instance. Apply it first, then call `put()`.
-        form.transform((data) => ({
-            ...data,
-
-            // Preserve the user's current reporting-manager eligibility
-            // flag because the existing update endpoint validates this
-            // field as part of the complete user update payload.
-            can_be_reporting_manager:
-                Boolean(
-                    (user as typeof user & {
-                        can_be_reporting_manager?: boolean;
-                    })
-                        .can_be_reporting_manager,
-                ),
-        }));
+        // Do not send can_be_reporting_manager from this assignment action.
+        // The backend preserves its saved value when the field is omitted.
 
         form.put(
             `/admin/users/${user.id}`,

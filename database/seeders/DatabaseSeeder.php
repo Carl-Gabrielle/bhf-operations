@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             OrganizationalUnitSeeder::class,
             PositionSeeder::class,
             TestAccountSeeder::class,
+            LeaveApprovalWorkflowSeeder::class,
         ]);
     }
 }

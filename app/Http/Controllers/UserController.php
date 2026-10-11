@@ -307,8 +307,12 @@ class UserController extends Controller
         return Inertia::render(
             'Admin/Users/View',
             [
-                'user' =>
+                'user' => array_merge(
                     (new UserResource($user))->resolve(),
+                    [
+                        'can_be_reporting_manager' => (bool) $user->can_be_reporting_manager,
+                    ],
+                ),
                 'organizationalUnits' =>
                     $organizationalUnits,
                 'positions' =>
@@ -610,13 +614,11 @@ class UserController extends Controller
                         $validated['role']
                     );
                 }
-
                 // Grant or revoke direct approval permissions based on manager eligibility.
                 $this->syncReportingManagerApprovalPermissions(
                     $user,
                     $canBeReportingManager
                 );
-
                 return $user;
             }
         );
@@ -871,8 +873,9 @@ class UserController extends Controller
         |--------------------------------------------------------------------------
         */
         // Preserve the saved value when the edit form omits this field.
+        // Preserve the stored value when a request only changes the reporting manager.
         $canBeReportingManager = array_key_exists('can_be_reporting_manager', $validated)
-            ? (bool) $validated['can_be_reporting_manager']
+            ? $request->boolean('can_be_reporting_manager')
             : (bool) $user->can_be_reporting_manager;
         /*
         |--------------------------------------------------------------------------
@@ -1046,13 +1049,11 @@ class UserController extends Controller
                         : []
                 );
             }
-
             // Grant or revoke direct approval permissions based on manager eligibility.
             $this->syncReportingManagerApprovalPermissions(
                 $user,
                 $canBeReportingManager
             );
-
             /*
             |--------------------------------------------------------------------------
             | Audit
@@ -1128,8 +1129,6 @@ class UserController extends Controller
                 'User updated successfully.'
             );
     }
-
-
     /**
      * Synchronize direct approval permissions for reporting managers.
      * Role-based permissions (such as HR or COO) remain controlled by Spatie roles.
@@ -1144,20 +1143,16 @@ class UserController extends Controller
             'undertime.approve',
             'travel.approve',
         ];
-
         $shouldHaveManagerApprovalAccess =
             $canBeReportingManager &&
             $user->account_status === 'active';
-
         if ($shouldHaveManagerApprovalAccess) {
             $user->givePermissionTo($approvalPermissions);
         } else {
             // Remove direct grants only; role-derived permissions remain intact.
             $user->revokePermissionTo($approvalPermissions);
         }
-
         app(\Spatie\Permission\PermissionRegistrar::class)
             ->forgetCachedPermissions();
     }
-
 }

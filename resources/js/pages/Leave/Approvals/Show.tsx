@@ -1,1065 +1,534 @@
+import { Head, Link, useForm } from '@inertiajs/react';
 import {
-    FormEvent,
-    useState,
-} from 'react';
-
-import {
-    Head,
-    Link,
-    useForm,
-} from '@inertiajs/react';
-
-import {
-    AlertTriangle,
     ArrowLeft,
     CalendarDays,
     Check,
     CheckCircle2,
     Clock3,
-    Download,
     FileText,
-    Info,
+    GitBranch,
     MessageSquare,
-    Paperclip,
     UserRound,
     X,
     XCircle,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-
-type Employee = {
+type User = {
     id: number;
     name: string;
     employee_number?: string | null;
-
-    organizational_unit?: {
-        id: number;
-        name: string;
-    } | null;
-
-    position?: {
-        id: number;
-        name: string;
-    } | null;
-
-    reports_to?: {
-        id: number;
-        name: string;
-    } | null;
-};
-
-type LeaveType = {
-    id: number;
-    name: string;
-    code?: string | null;
-    description?: string | null;
-    is_paid?: boolean;
+    position?: { name?: string | null } | null;
+    organizational_unit?: { name?: string | null } | null;
 };
 
 type Approval = {
     id: number;
-    status: string;
+    step_order: number;
+    action: string;
     remarks?: string | null;
-    approved_at?: string | null;
-
-    approver?: {
-        id: number;
-        name: string;
+    acted_at?: string | null;
+    approver?: User | null;
+    workflow_step?: {
+        name?: string | null;
+        description?: string | null;
     } | null;
 };
 
-type LeaveApplication = {
+type Application = {
     id: number;
     application_no?: string | null;
-
     status: string;
-
-    start_date: string;
-    end_date: string;
-
+    submitted_at?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
     total_days?: number | string | null;
-
-    schedule_type?:
-        | 'full_day'
-        | 'half_day_am'
-        | 'half_day_pm'
-        | string
-        | null;
-
     reason?: string | null;
-
-    attachment_path?: string | null;
-    attachment_name?: string | null;
-
-    created_at?: string | null;
-
-    employee: Employee;
-    leave_type: LeaveType;
-
+    remarks?: string | null;
+    employee?: User | null;
+    leave_type?: { name?: string | null } | null;
     approval_workflow?: {
-        id: number;
-        name: string;
+        name?: string | null;
+        description?: string | null;
+        steps?: Array<{
+            id: number;
+            name?: string | null;
+            step_order: number;
+            approver?: User | null;
+        }>;
     } | null;
-
     approvals?: Approval[];
 };
 
-type Approver = {
-    id: number;
-    name: string;
-};
-
 type Props = {
-    application: LeaveApplication;
-    approver: Approver;
+    application: Application;
+    approver: {
+        id: number;
+        name: string;
+        employee_number?: string | null;
+    };
 };
 
-export default function Show({
-    application,
-    approver,
-}: Props) {
-    const [showRejectDialog, setShowRejectDialog] =
-        useState(false);
-
-    const approveForm = useForm({
-        remarks: '',
-    });
-
-    const rejectForm = useForm({
-        remarks: '',
-    });
-
-    const formatDate = (date: string) => {
-        if (!date) {
-            return '—';
-        }
-
-        const parsed = new Date(
-            `${date}T00:00:00`,
-        );
-
-        if (Number.isNaN(parsed.getTime())) {
-            return date;
-        }
-
-        return new Intl.DateTimeFormat(
-            'en-US',
-            {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-            },
-        )
-            .format(parsed)
-            .replace(
-                /^([A-Za-z]{3}) /,
-                '$1. ',
-            );
-    };
-
-    const formatDateRange = () => {
-        const start =
-            formatDate(
-                application.start_date,
-            );
-
-        const end =
-            formatDate(
-                application.end_date,
-            );
-
-        if (
-            application.start_date ===
-            application.end_date
-        ) {
-            return start;
-        }
-
-        return `${start} – ${end}`;
-    };
-
-    const formatDuration = () => {
-        const days = Number(
-            application.total_days ?? 0,
-        );
-
-        const unit =
-            days === 0.5 || days === 1
-                ? 'day'
-                : 'days';
-
-        return `${days} ${unit}`;
-    };
-
-    const scheduleLabel =
-        getScheduleLabel(
-            application.schedule_type,
-        );
-
-    const canTakeAction =
-        application.status === 'pending' ||
-        application.status ===
-            'for_approval';
-
-    const submitApprove = (
-        event: FormEvent,
-    ) => {
-        event.preventDefault();
-
-        approveForm.post(
-            `/leave/approvals/${application.id}/approve`,
-            {
-                preserveScroll: true,
-            },
-        );
-    };
-
-    const submitReject = (
-        event: FormEvent,
-    ) => {
-        event.preventDefault();
-
-        rejectForm.post(
-            `/leave/approvals/${application.id}/reject`,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setShowRejectDialog(false);
-                },
-            },
-        );
-    };
-
-    return (
-        <>
-            <Head
-                title={`Leave Approval - ${
-                    application.employee?.name ??
-                    'Request'
-                }`}
-            />
-
-            <div className="min-h-screen bg-[#f7f9fc]">
-                <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-
-                    {/* =====================================================
-                        BACK
-                    ====================================================== */}
-
-                    <Link
-                        href="/leave/approvals"
-                        className="group mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-[#28658F]"
-                    >
-                        <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-                        Back to Leave Approvals
-                    </Link>
-
-                    {/* =====================================================
-                        HEADER
-                    ====================================================== */}
-
-                    <div className="relative mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-
-                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#28658F] via-[#4389BC] to-[#75AFCF]" />
-
-                        <div className="p-6 sm:p-7">
-                            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-
-                                <div className="flex items-start gap-4">
-                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#4389BC]/10">
-                                        <FileText className="h-5 w-5 text-[#4389BC]" />
-                                    </div>
-
-                                    <div>
-                                        <div className="mb-1 flex flex-wrap items-center gap-2">
-                                            <span className="text-[10px] font-bold uppercase tracking-[0.17em] text-[#4389BC]">
-                                                Leave Approval
-                                            </span>
-
-                                            {application.application_no && (
-                                                <>
-                                                    <span className="h-1 w-1 rounded-full bg-slate-300" />
-
-                                                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                                                        {
-                                                            application.application_no
-                                                        }
-                                                    </span>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-                                            Review Leave Request
-                                        </h1>
-
-                                        <p className="mt-1.5 text-sm text-slate-500">
-                                            Review the employee's request
-                                            before approving or rejecting it.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <StatusBadge
-                                    status={
-                                        application.status
-                                    }
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-
-                        {/* =================================================
-                            MAIN CONTENT
-                        ================================================= */}
-
-                        <div className="space-y-5">
-
-                            {/* Employee */}
-
-                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
-                                <SectionHeader
-                                    icon={
-                                        <UserRound className="h-4 w-4 text-[#4389BC]" />
-                                    }
-                                    title="Employee Information"
-                                    description="Employee associated with this request"
-                                />
-
-                                <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3 lg:p-6">
-                                    <InfoField
-                                        label="Employee"
-                                        value={
-                                            application
-                                                .employee
-                                                ?.name ??
-                                            '—'
-                                        }
-                                        emphasized
-                                    />
-
-                                    <InfoField
-                                        label="Employee Number"
-                                        value={
-                                            application
-                                                .employee
-                                                ?.employee_number ??
-                                            '—'
-                                        }
-                                    />
-
-                                    <InfoField
-                                        label="Department"
-                                        value={
-                                            application
-                                                .employee
-                                                ?.organizational_unit
-                                                ?.name ??
-                                            '—'
-                                        }
-                                    />
-
-                                    <InfoField
-                                        label="Position"
-                                        value={
-                                            application
-                                                .employee
-                                                ?.position
-                                                ?.name ??
-                                            '—'
-                                        }
-                                    />
-
-                                    <InfoField
-                                        label="Reporting Manager"
-                                        value={
-                                            application
-                                                .employee
-                                                ?.reports_to
-                                                ?.name ??
-                                            approver.name
-                                        }
-                                    />
-                                </div>
-                            </section>
-
-                            {/* Leave Details */}
-
-                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
-                                <SectionHeader
-                                    icon={
-                                        <CalendarDays className="h-4 w-4 text-[#4389BC]" />
-                                    }
-                                    title="Leave Request"
-                                    description="Details submitted by the employee"
-                                />
-
-                                <div className="space-y-6 p-5 sm:p-6 lg:p-7">
-
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <InfoField
-                                            label="Leave Type"
-                                            value={
-                                                application
-                                                    .leave_type
-                                                    ?.name ??
-                                                '—'
-                                            }
-                                            emphasized
-                                        />
-
-                                        <InfoField
-                                            label="Schedule"
-                                            value={
-                                                scheduleLabel
-                                            }
-                                        />
-
-                                        <InfoField
-                                            label="Start Date"
-                                            value={formatDate(
-                                                application.start_date,
-                                            )}
-                                        />
-
-                                        <InfoField
-                                            label="End Date"
-                                            value={formatDate(
-                                                application.end_date,
-                                            )}
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center justify-between rounded-xl border border-[#4389BC]/15 bg-[#4389BC]/5 px-5 py-4">
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#4389BC]">
-                                                Requested Duration
-                                            </p>
-
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                Total leave requested
-                                            </p>
-                                        </div>
-
-                                        <p className="text-xl font-bold tracking-tight text-slate-900">
-                                            {formatDuration()}
-                                        </p>
-                                    </div>
-
-                                    {/* Reason */}
-
-                                    <div>
-                                        <div className="mb-2.5 flex items-center gap-2">
-                                            <MessageSquare className="h-4 w-4 text-slate-400" />
-
-                                            <p className="text-sm font-semibold text-slate-800">
-                                                Reason
-                                            </p>
-                                        </div>
-
-                                        <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-                                            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                                                {
-                                                    application.reason
-                                                }
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Attachment */}
-
-                                    {application.attachment_path && (
-                                        <div>
-                                            <div className="mb-2.5 flex items-center gap-2">
-                                                <Paperclip className="h-4 w-4 text-slate-400" />
-
-                                                <p className="text-sm font-semibold text-slate-800">
-                                                    Supporting Document
-                                                </p>
-                                            </div>
-
-                                            <a
-                                                href={`/leave/applications/${application.id}/download`}
-                                                className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-[#4389BC]/30 hover:bg-[#4389BC]/5"
-                                            >
-                                                <div className="flex min-w-0 items-center gap-3">
-                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50">
-                                                        <FileText className="h-4 w-4 text-[#4389BC]" />
-                                                    </div>
-
-                                                    <div className="min-w-0">
-                                                        <p className="truncate text-sm font-semibold text-slate-700">
-                                                            {
-                                                                application.attachment_name ??
-                                                                'Supporting document'
-                                                            }
-                                                        </p>
-
-                                                        <p className="mt-0.5 text-xs text-slate-400">
-                                                            Supporting document
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <Download className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-[#4389BC]" />
-                                            </a>
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* Previous Approvals */}
-
-                            {application.approvals &&
-                                application.approvals
-                                    .length > 0 && (
-                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
-                                        <SectionHeader
-                                            icon={
-                                                <CheckCircle2 className="h-4 w-4 text-[#4389BC]" />
-                                            }
-                                            title="Approval History"
-                                            description="Actions recorded for this request"
-                                        />
-
-                                        <div className="divide-y divide-slate-100">
-                                            {application.approvals.map(
-                                                (
-                                                    approval,
-                                                ) => (
-                                                    <div
-                                                        key={
-                                                            approval.id
-                                                        }
-                                                        className="p-5 sm:px-6"
-                                                    >
-                                                        <div className="flex items-start justify-between gap-4">
-                                                            <div>
-                                                                <p className="text-sm font-semibold text-slate-800">
-                                                                    {approval
-                                                                        .approver
-                                                                        ?.name ??
-                                                                        'Approver'}
-                                                                </p>
-
-                                                                <p className="mt-1 text-xs text-slate-400">
-                                                                    {approval.approved_at ??
-                                                                        'Pending action'}
-                                                                </p>
-                                                            </div>
-
-                                                            <StatusBadge
-                                                                status={
-                                                                    approval.status
-                                                                }
-                                                            />
-                                                        </div>
-
-                                                        {approval.remarks && (
-                                                            <div className="mt-3 rounded-lg bg-slate-50 px-3.5 py-3">
-                                                                <p className="text-xs leading-5 text-slate-600">
-                                                                    {
-                                                                        approval.remarks
-                                                                    }
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ),
-                                            )}
-                                        </div>
-                                    </section>
-                                )}
-                        </div>
-
-                        {/* =================================================
-                            RIGHT SIDEBAR
-                        ================================================= */}
-
-                        <div className="space-y-5">
-
-                            {/* Approval Action */}
-
-                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
-                                <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-4">
-                                    <h2 className="text-sm font-semibold text-slate-900">
-                                        Approval Decision
-                                    </h2>
-
-                                    <p className="mt-0.5 text-xs text-slate-500">
-                                        Your decision will be recorded
-                                        against this request.
-                                    </p>
-                                </div>
-
-                                <div className="p-5">
-
-                                    {!canTakeAction ? (
-                                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-                                            <CheckCircle2 className="mx-auto h-5 w-5 text-slate-400" />
-
-                                            <p className="mt-2 text-sm font-semibold text-slate-700">
-                                                No action required
-                                            </p>
-
-                                            <p className="mt-1 text-xs leading-5 text-slate-500">
-                                                This request has already
-                                                been processed.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {/* Approve */}
-
-                                            <form
-                                                onSubmit={
-                                                    submitApprove
-                                                }
-                                            >
-                                                <label className="mb-2 block text-xs font-semibold text-slate-700">
-                                                    Approval Remarks
-                                                    <span className="ml-1 font-normal text-slate-400">
-                                                        Optional
-                                                    </span>
-                                                </label>
-
-                                                <Textarea
-                                                    value={
-                                                        approveForm
-                                                            .data
-                                                            .remarks
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        approveForm.setData(
-                                                            'remarks',
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
-                                                    rows={4}
-                                                    placeholder="Add a note for the employee..."
-                                                    className="resize-none rounded-lg"
-                                                />
-
-                                                <Button
-                                                    type="submit"
-                                                    disabled={
-                                                        approveForm.processing ||
-                                                        rejectForm.processing
-                                                    }
-                                                    className="mt-4 h-11 w-full rounded-lg bg-[#28658F] font-semibold text-white shadow-sm hover:bg-[#1f5275]"
-                                                >
-                                                    {approveForm.processing ? (
-                                                        <>
-                                                            <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                                            Approving...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Check className="mr-2 h-4 w-4" />
-                                                            Approve Request
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </form>
-
-                                            <div className="my-5 flex items-center gap-3">
-                                                <div className="h-px flex-1 bg-slate-100" />
-
-                                                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                                    or
-                                                </span>
-
-                                                <div className="h-px flex-1 bg-slate-100" />
-                                            </div>
-
-                                            {/* Reject */}
-
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                disabled={
-                                                    approveForm.processing ||
-                                                    rejectForm.processing
-                                                }
-                                                onClick={() =>
-                                                    setShowRejectDialog(
-                                                        true,
-                                                    )
-                                                }
-                                                className="h-11 w-full rounded-lg border-red-200 bg-white font-semibold text-red-600 hover:bg-red-50 hover:text-red-700"
-                                            >
-                                                <X className="mr-2 h-4 w-4" />
-                                                Reject Request
-                                            </Button>
-                                        </>
-                                    )}
-                                </div>
-                            </section>
-
-                            {/* Workflow */}
-
-                            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.035)]">
-                                <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-4">
-                                    <h2 className="text-sm font-semibold text-slate-900">
-                                        Approval Workflow
-                                    </h2>
-                                </div>
-
-                                <div className="p-5">
-                                    <div className="flex items-start gap-3">
-                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#4389BC] text-white">
-                                            <Check className="h-4 w-4" />
-                                        </div>
-
-                                        <div>
-                                            <p className="text-sm font-semibold text-slate-800">
-                                                {application
-                                                    .employee
-                                                    ?.name ??
-                                                    'Employee'}
-                                            </p>
-
-                                            <p className="mt-0.5 text-xs text-slate-500">
-                                                Leave request submitted
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="ml-4 h-7 border-l border-dashed border-slate-200" />
-
-                                    <div className="flex items-start gap-3">
-                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#4389BC] bg-white">
-                                            <UserRound className="h-3.5 w-3.5 text-[#4389BC]" />
-                                        </div>
-
-                                        <div>
-                                            <p className="text-sm font-semibold text-slate-800">
-                                                {approver.name}
-                                            </p>
-
-                                            <p className="mt-0.5 text-xs text-slate-500">
-                                                Current approver
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
-
-                            {/* Information */}
-
-                            <div className="rounded-2xl border border-[#4389BC]/15 bg-[#4389BC]/5 p-5">
-                                <div className="flex items-start gap-3">
-                                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#4389BC]" />
-
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-800">
-                                            Approval responsibility
-                                        </p>
-
-                                        <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                                            Only the employee's assigned
-                                            reporting manager or an
-                                            authorized approver should
-                                            process this request.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* =============================================================
-                REJECT DIALOG
-            ============================================================= */}
-
-            {showRejectDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-[2px]">
-                    <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-
-                        <div className="border-b border-slate-100 px-5 py-4">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50">
-                                        <AlertTriangle className="h-4 w-4 text-red-500" />
-                                    </div>
-
-                                    <div>
-                                        <h2 className="text-sm font-semibold text-slate-900">
-                                            Reject Leave Request
-                                        </h2>
-
-                                        <p className="mt-0.5 text-xs text-slate-500">
-                                            A reason is required when
-                                            rejecting a request.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setShowRejectDialog(
-                                            false,
-                                        )
-                                    }
-                                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <form
-                            onSubmit={submitReject}
-                        >
-                            <div className="p-5">
-                                <label className="mb-2 block text-xs font-semibold text-slate-700">
-                                    Rejection Reason
-                                    <span className="ml-1 text-red-500">
-                                        *
-                                    </span>
-                                </label>
-
-                                <Textarea
-                                    value={
-                                        rejectForm.data
-                                            .remarks
-                                    }
-                                    onChange={(
-                                        event,
-                                    ) =>
-                                        rejectForm.setData(
-                                            'remarks',
-                                            event
-                                                .target
-                                                .value,
-                                        )
-                                    }
-                                    rows={5}
-                                    autoFocus
-                                    placeholder="Explain why this leave request cannot be approved..."
-                                    className="resize-none rounded-lg"
-                                />
-
-                                {rejectForm.errors.remarks && (
-                                    <p className="mt-2 text-xs font-medium text-red-600">
-                                        {
-                                            rejectForm.errors
-                                                .remarks
-                                        }
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:flex-row sm:justify-end">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() =>
-                                        setShowRejectDialog(
-                                            false,
-                                        )
-                                    }
-                                    className="rounded-lg"
-                                >
-                                    Cancel
-                                </Button>
-
-                                <Button
-                                    type="submit"
-                                    disabled={
-                                        rejectForm.processing
-                                    }
-                                    className="rounded-lg bg-red-600 font-semibold text-white hover:bg-red-700"
-                                >
-                                    {rejectForm.processing ? (
-                                        <>
-                                            <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                                            Rejecting...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <XCircle className="mr-2 h-4 w-4" />
-                                            Reject Request
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </>
-    );
+function formatDate(value?: string | null): string {
+    if (!value) return '—';
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const date = dateOnly
+        ? new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])))
+        : new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return new Intl.DateTimeFormat('en-PH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        ...(dateOnly ? { timeZone: 'UTC' } : {}),
+    }).format(date);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Section Header
-|--------------------------------------------------------------------------
-*/
+function formatDateTime(value?: string | null): string {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
 
-function SectionHeader({
-    icon,
-    title,
-    description,
-}: {
-    icon: React.ReactNode;
-    title: string;
-    description: string;
-}) {
-    return (
-        <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-4 sm:px-6">
-            <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm">
-                    {icon}
-                </div>
-
-                <div>
-                    <h2 className="text-sm font-semibold text-slate-900">
-                        {title}
-                    </h2>
-
-                    <p className="mt-0.5 text-xs text-slate-500">
-                        {description}
-                    </p>
-                </div>
-            </div>
-        </div>
-    );
+    return new Intl.DateTimeFormat('en-PH', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(date);
 }
 
-/*
-|--------------------------------------------------------------------------
-| Info Field
-|--------------------------------------------------------------------------
-*/
-
-function InfoField({
-    label,
-    value,
-    emphasized = false,
-}: {
-    label: string;
-    value: string;
-    emphasized?: boolean;
-}) {
-    return (
-        <div
-            className={`
-                rounded-xl border px-4 py-3
-                ${
-                    emphasized
-                        ? 'border-[#4389BC]/20 bg-[#4389BC]/5'
-                        : 'border-slate-100 bg-slate-50/70'
-                }
-            `}
-        >
-            <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-400">
-                {label}
-            </p>
-
-            <p
-                className={`
-                    mt-1.5 truncate text-sm
-                    ${
-                        emphasized
-                            ? 'font-semibold text-slate-800'
-                            : 'font-medium text-slate-700'
-                    }
-                `}
-            >
-                {value}
-            </p>
-        </div>
-    );
+function humanize(value?: string | null): string {
+    if (!value) return 'Status unavailable';
+    return value
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-/*
-|--------------------------------------------------------------------------
-| Status Badge
-|--------------------------------------------------------------------------
-*/
+function actionLabel(action: string): string {
+    const labels: Record<string, string> = {
+        approved: 'Approved',
+        rejected: 'Rejected',
+        pending: 'Awaiting decision',
+        waiting: 'Waiting',
+        cancelled: 'Cancelled',
+    };
+    return labels[action] ?? humanize(action);
+}
 
-function StatusBadge({
-    status,
-}: {
-    status: string;
-}) {
-    const normalized =
-        status?.toLowerCase();
+function actionStyle(action: string): string {
+    switch (action) {
+        case 'approved':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+        case 'rejected':
+            return 'border-rose-200 bg-rose-50 text-rose-800';
+        case 'pending':
+            return 'border-amber-200 bg-amber-50 text-amber-800';
+        default:
+            return 'border-slate-200 bg-slate-50 text-slate-600';
+    }
+}
 
-    const approved =
-        normalized === 'approved';
-
-    const rejected =
-        normalized === 'rejected' ||
-        normalized === 'disapproved';
+function StatusBadge({ status }: { status: string }) {
+    const normalized = status?.toLowerCase() ?? 'unknown';
+    const pending = ['pending_approval', 'submitted', 'processing'].includes(normalized);
+    const approved = ['approved', 'completed'].includes(normalized);
+    const rejected = ['rejected', 'cancelled'].includes(normalized);
+    const Icon = pending ? Clock3 : approved ? CheckCircle2 : rejected ? XCircle : FileText;
+    const style = pending
+        ? 'border-amber-200 bg-amber-50 text-amber-800'
+        : approved
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : rejected
+            ? 'border-rose-200 bg-rose-50 text-rose-800'
+            : 'border-slate-200 bg-slate-50 text-slate-700';
 
     return (
-        <span
-            className={`
-                inline-flex items-center gap-1.5
-                rounded-full border px-3 py-1.5
-                text-[10px] font-bold uppercase
-                tracking-wide
-                ${
-                    approved
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : rejected
-                          ? 'border-red-200 bg-red-50 text-red-700'
-                          : 'border-amber-200 bg-amber-50 text-amber-700'
-                }
-            `}
-        >
-            <span
-                className={`
-                    h-1.5 w-1.5 rounded-full
-                    ${
-                        approved
-                            ? 'bg-emerald-500'
-                            : rejected
-                              ? 'bg-red-500'
-                              : 'bg-amber-500'
-                    }
-                `}
-            />
-
-            {status || 'Pending'}
+        <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${style}`}>
+            <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+            {humanize(normalized)}
         </span>
     );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Schedule
-|--------------------------------------------------------------------------
-*/
+function Panel({
+    title,
+    description,
+    icon: Icon,
+    children,
+}: {
+    title: string;
+    description?: string;
+    icon?: typeof FileText;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,35,65,0.035)]">
+            <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                {Icon && (
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#edf4fa] text-[#205c86]">
+                        <Icon aria-hidden="true" className="h-4.5 w-4.5" />
+                    </span>
+                )}
+                <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+                    {description && <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p>}
+                </div>
+            </div>
+            {children}
+        </section>
+    );
+}
 
-function getScheduleLabel(
-    schedule?: string | null,
-) {
-    switch (schedule) {
-        case 'half_day_am':
-            return 'Half Day AM';
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <div className="min-w-0 space-y-1.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+            <div className="break-words text-sm font-medium leading-6 text-slate-800">{children || '—'}</div>
+        </div>
+    );
+}
 
-        case 'half_day_pm':
-            return 'Half Day PM';
+export default function Show({ application, approver }: Props) {
+    const employee = application?.employee;
+    const approvals = [...(application?.approvals ?? [])].sort((a, b) => a.step_order - b.step_order);
+    const activeApproval = approvals.find(
+        (approval) => approval.approver?.id === approver?.id && approval.action === 'pending',
+    );
 
-        case 'full_day':
-            return 'Full Day';
+    const approveForm = useForm({ remarks: '' });
+    const rejectForm = useForm({ remarks: '' });
+    const isSubmitting = approveForm.processing || rejectForm.processing;
 
-        default:
-            return schedule || 'Full Day';
+    function approve() {
+        approveForm.post(`/leave/approvals/${application.id}/approve`, {
+            preserveScroll: true,
+        });
     }
+
+    function reject() {
+        if (!rejectForm.data.remarks.trim()) {
+            rejectForm.setError('remarks', 'Please provide a reason for rejecting this request.');
+            return;
+        }
+
+        rejectForm.post(`/leave/approvals/${application.id}/reject`, {
+            preserveScroll: true,
+        });
+    }
+
+    return (
+        <>
+            <Head title={`Review ${application.application_no || 'Leave Application'}`} />
+
+            {/* AppLayout is intentionally omitted. The authenticated app shell already renders the
+                dashboard header/sidebar; wrapping this page in AppLayout duplicates that shell. */}
+            <main className="min-h-full bg-[#f4f7fb] text-slate-900">
+                <div className="mx-auto w-full max-w-[1440px] space-y-6 px-4 py-5 sm:px-6 sm:py-7 xl:px-8">
+                    <Link
+                        href="/leave/approvals"
+                        className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#205c86] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc]"
+                    >
+                        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                        Back to approvals
+                    </Link>
+
+                    <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,35,65,0.035)]">
+                        <div className="h-1.5 bg-[#17366b]" />
+                        <div className="flex flex-col gap-5 p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex min-w-0 items-start gap-4">
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#17366b] text-white shadow-sm">
+                                    <FileText aria-hidden="true" className="h-5 w-5" />
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#4389bc]">
+                                        Leave management / Approvals
+                                    </p>
+                                    <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#17366b] sm:text-3xl">
+                                        Review leave application
+                                    </h1>
+                                    <p className="mt-2 break-all text-sm text-slate-500">
+                                        Reference: {application.application_no || `Application #${application.id}`}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+                                <StatusBadge status={application.status} />
+                                <p className="text-xs text-slate-500">
+                                    Submitted {formatDateTime(application.submitted_at)}
+                                </p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                        <div className="min-w-0 space-y-6">
+                            <Panel
+                                title="Application details"
+                                description="Review the employee information and requested leave period before making a decision."
+                                icon={FileText}
+                            >
+                                <div className="grid gap-x-8 gap-y-6 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+                                    <Detail label="Employee name">{employee?.name}</Detail>
+                                    <Detail label="Employee number">{employee?.employee_number}</Detail>
+                                    <Detail label="Department / section">{employee?.organizational_unit?.name}</Detail>
+                                    <Detail label="Position">{employee?.position?.name}</Detail>
+                                    <Detail label="Leave type">{application.leave_type?.name}</Detail>
+                                    <Detail label="Total leave days">
+                                        {application.total_days != null
+                                            ? `${application.total_days} ${Number(application.total_days) === 1 ? 'day' : 'days'}`
+                                            : '—'}
+                                    </Detail>
+                                    <Detail label="Start date">{formatDate(application.start_date)}</Detail>
+                                    <Detail label="End date">{formatDate(application.end_date)}</Detail>
+                                    <Detail label="Assigned reviewer">{approver?.name}</Detail>
+                                </div>
+                                <div className="border-t border-slate-100 bg-slate-50/70 p-5 sm:p-6">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Reason / remarks
+                                    </p>
+                                    <p className="mt-2 whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
+                                        {application.reason || application.remarks || 'No reason or remarks provided.'}
+                                    </p>
+                                </div>
+                            </Panel>
+
+                            <Panel
+                                title="Approval progress"
+                                description="Track each workflow step and the decision recorded by each reviewer."
+                                icon={GitBranch}
+                            >
+                                {application.approval_workflow?.name && (
+                                    <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3 sm:px-6">
+                                        <p className="text-xs text-slate-500">Workflow</p>
+                                        <p className="mt-1 text-sm font-semibold text-slate-800">
+                                            {application.approval_workflow.name}
+                                        </p>
+                                        {application.approval_workflow.description && (
+                                            <p className="mt-1 text-sm leading-5 text-slate-500">
+                                                {application.approval_workflow.description}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="p-5 sm:p-6">
+                                    {approvals.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                                            <GitBranch className="mx-auto h-6 w-6 text-slate-400" />
+                                            <p className="mt-3 text-sm font-semibold text-slate-800">No approval steps recorded</p>
+                                            <p className="mt-1 text-sm text-slate-500">
+                                                Workflow progress will appear here when approval steps are available.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <ol className="space-y-0">
+                                            {approvals.map((approval, index) => {
+                                                const completed = approval.action === 'approved';
+                                                const rejected = approval.action === 'rejected';
+                                                const pending = approval.action === 'pending';
+                                                const StepIcon = completed ? Check : rejected ? X : pending ? Clock3 : GitBranch;
+                                                const stepStyle = completed
+                                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                    : rejected
+                                                      ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                                      : pending
+                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                        : 'border-slate-200 bg-slate-50 text-slate-500';
+
+                                                return (
+                                                    <li key={approval.id} className="relative flex gap-4 pb-7 last:pb-0">
+                                                        {index < approvals.length - 1 && (
+                                                            <span className="absolute bottom-0 left-4 top-9 w-px bg-slate-200" />
+                                                        )}
+                                                        <span className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${stepStyle}`}>
+                                                            <StepIcon aria-hidden="true" className="h-4 w-4" />
+                                                        </span>
+                                                        <div className="min-w-0 flex-1 rounded-xl border border-slate-100 bg-white p-4">
+                                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-slate-900">
+                                                                        {approval.workflow_step?.name || `Approval step ${approval.step_order}`}
+                                                                    </p>
+                                                                    <p className="mt-1 text-sm text-slate-600">
+                                                                        {approval.approver?.name || 'Approver not assigned'}
+                                                                    </p>
+                                                                    {approval.approver?.position?.name && (
+                                                                        <p className="mt-0.5 text-xs text-slate-500">
+                                                                            {approval.approver.position.name}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${actionStyle(approval.action)}`}>
+                                                                    {actionLabel(approval.action)}
+                                                                </span>
+                                                            </div>
+                                                            {approval.acted_at && (
+                                                                <p className="mt-3 text-xs text-slate-500">
+                                                                    Recorded {formatDateTime(approval.acted_at)}
+                                                                </p>
+                                                            )}
+                                                            {approval.remarks && (
+                                                                <div className="mt-3 rounded-lg bg-slate-50 p-3">
+                                                                    <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                                                        <MessageSquare aria-hidden="true" className="h-3.5 w-3.5" />
+                                                                        Reviewer remarks
+                                                                    </p>
+                                                                    <p className="whitespace-pre-wrap text-sm leading-5 text-slate-700">
+                                                                        {approval.remarks}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ol>
+                                    )}
+                                </div>
+                            </Panel>
+                        </div>
+
+                        <aside className="min-w-0 space-y-6 xl:sticky xl:top-6">
+                            <Panel
+                                title="Your decision"
+                                description="Record your decision for this application."
+                                icon={CheckCircle2}
+                            >
+                                {activeApproval ? (
+                                    <div className="space-y-5 p-5 sm:p-6">
+                                        <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                            <Clock3 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                                            <div>
+                                                <p className="text-sm font-semibold text-amber-900">Action required</p>
+                                                <p className="mt-1 text-sm leading-5 text-amber-800">
+                                                    Review the details carefully before approving or rejecting this request.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <form
+                                            onSubmit={(event) => {
+                                                event.preventDefault();
+                                                approve();
+                                            }}
+                                            className="space-y-3"
+                                        >
+                                            <label htmlFor="approve-remarks" className="block text-sm font-semibold text-slate-800">
+                                                Approval remarks <span className="font-normal text-slate-500">(optional)</span>
+                                            </label>
+                                            <textarea
+                                                id="approve-remarks"
+                                                value={approveForm.data.remarks}
+                                                onChange={(event) => approveForm.setData('remarks', event.target.value)}
+                                                rows={3}
+                                                maxLength={2000}
+                                                placeholder="Add a note for the approval record..."
+                                                className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#4389bc] focus:ring-4 focus:ring-[#4389bc]/10"
+                                            />
+                                            {approveForm.errors.remarks && (
+                                                <p className="text-sm text-rose-600">{approveForm.errors.remarks}</p>
+                                            )}
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmitting}
+                                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                                                {approveForm.processing ? 'Approving…' : 'Approve application'}
+                                            </button>
+                                        </form>
+
+                                        <div className="border-t border-slate-100" />
+
+                                        <form
+                                            onSubmit={(event) => {
+                                                event.preventDefault();
+                                                reject();
+                                            }}
+                                            className="space-y-3"
+                                        >
+                                            <label htmlFor="reject-remarks" className="block text-sm font-semibold text-slate-800">
+                                                Reason for rejection <span className="text-rose-600">*</span>
+                                            </label>
+                                            <textarea
+                                                id="reject-remarks"
+                                                required
+                                                value={rejectForm.data.remarks}
+                                                onChange={(event) => {
+                                                    rejectForm.setData('remarks', event.target.value);
+                                                    if (event.target.value.trim()) rejectForm.clearErrors('remarks');
+                                                }}
+                                                rows={3}
+                                                maxLength={2000}
+                                                placeholder="Explain why this request is being rejected..."
+                                                className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-rose-400 focus:ring-4 focus:ring-rose-500/10"
+                                            />
+                                            {rejectForm.errors.remarks && (
+                                                <p className="text-sm text-rose-600">{rejectForm.errors.remarks}</p>
+                                            )}
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmitting}
+                                                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                <XCircle aria-hidden="true" className="h-4 w-4" />
+                                                {rejectForm.processing ? 'Rejecting…' : 'Reject application'}
+                                            </button>
+                                        </form>
+                                    </div>
+                                ) : (
+                                    <div className="p-5 sm:p-6">
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                            <p className="text-sm font-semibold text-slate-800">No action available</p>
+                                            <p className="mt-1 text-sm leading-5 text-slate-600">
+                                                This application is not currently assigned to you for a pending decision.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </Panel>
+
+                            <Panel
+                                title="Employee information"
+                                description="Quick reference for the applicant."
+                                icon={UserRound}
+                            >
+                                <div className="p-5 sm:p-6">
+                                    <div className="flex items-center gap-3">
+                                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eaf3fb] text-sm font-bold text-[#205c86]">
+                                            {(employee?.name || 'U')
+                                                .split(/\s+/)
+                                                .filter(Boolean)
+                                                .slice(0, 2)
+                                                .map((part) => part[0])
+                                                .join('')
+                                                .toUpperCase()}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-semibold text-slate-900">
+                                                {employee?.name || 'Unknown employee'}
+                                            </p>
+                                            <p className="mt-0.5 text-xs text-slate-500">
+                                                {employee?.employee_number || 'No employee number'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="my-5 border-t border-slate-100" />
+                                    <div className="space-y-4">
+                                        <Detail label="Department">{employee?.organizational_unit?.name}</Detail>
+                                        <Detail label="Position">{employee?.position?.name}</Detail>
+                                        <Detail label="Application reference">
+                                            {application.application_no || `#${application.id}`}
+                                        </Detail>
+                                        <div className="flex items-start gap-2 text-xs leading-5 text-slate-500">
+                                            <CalendarDays aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                                            <span>Submitted {formatDateTime(application.submitted_at)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Panel>
+                        </aside>
+                    </div>
+                </div>
+            </main>
+        </>
+    );
 }

@@ -27,17 +27,6 @@ import {
 import BhfLogo from '@/assets/images/bhflogo.png';
 import { dashboard } from '@/routes';
 
-/*
-|--------------------------------------------------------------------------
-| Inertia Props
-|--------------------------------------------------------------------------
-|
-| Counts must be calculated on the server from requests the authenticated
-| user is authorized to act on. They are display hints, never authorization.
-| Missing counts safely default to zero and therefore render no badge.
-|
-*/
-
 type AuthUser = {
     id: number;
     name: string;
@@ -60,7 +49,9 @@ type NavigationCounts = {
 };
 
 type PageProps = {
-    auth?: { user?: AuthUser | null };
+    auth?: {
+        user?: AuthUser | null;
+    };
     navigationCounts?: NavigationCounts;
 };
 
@@ -72,67 +63,115 @@ type PageProps = {
 
 const mainNavItems: RBACNavItem[] = [
     {
-        title: 'Dashboard', href: dashboard(), icon: LayoutGrid,
-        permission: 'dashboard.view', section: 'main',
+        title: 'Dashboard',
+        href: dashboard(),
+        icon: LayoutGrid,
+        permission: 'dashboard.view',
+        section: 'main',
     },
     {
-        title: 'Employees', href: '/employees', icon: UserCog,
-        permission: 'employees.view', section: 'organization',
+        title: 'Employees',
+        href: '/employees',
+        icon: UserCog,
+        permission: 'employees.view',
+        section: 'organization',
     },
     {
-        title: 'Leave Applications', href: '/leave/applications', icon: CalendarDays,
-        permission: 'leave.view', section: 'requests',
+        title: 'Leave Applications',
+        href: '/leave/applications',
+        icon: CalendarDays,
+        permission: 'leave.view',
+        section: 'requests',
     },
     {
-        title: 'Undertime', href: '/undertime', icon: Clock3,
-        permission: 'undertime.view', section: 'requests',
+        title: 'Undertime',
+        href: '/undertime',
+        icon: Clock3,
+        permission: 'undertime.view',
+        section: 'requests',
     },
     {
-        title: 'Overtime', href: '/overtime', icon: Clock3,
-        permission: 'overtime.view', section: 'requests',
+        title: 'Overtime',
+        href: '/overtime',
+        icon: Clock3,
+        permission: 'overtime.view',
+        section: 'requests',
     },
     {
-        title: 'Travel Orders', href: '/travel-orders', icon: Plane,
-        permission: 'travel.view', section: 'requests',
+        title: 'Travel Orders',
+        href: '/travel-orders',
+        icon: Plane,
+        permission: 'travel.view',
+        section: 'requests',
     },
     {
-        title: 'Leave Approvals', href: '/leave/approvals', icon: ClipboardCheck,
-        permission: 'leave.approve', section: 'approvals', badgeLabel: 'pending approvals',
+        title: 'Leave Approvals',
+        href: '/leave/approvals',
+        icon: ClipboardCheck,
+        permission: 'leave.approve',
+        section: 'approvals',
+        badgeLabel: 'pending approvals',
     },
     {
-        title: 'Undertime Approvals', href: '/undertime/approvals', icon: Clock3,
-        permission: 'undertime.approve', section: 'approvals', badgeLabel: 'pending approvals',
+        title: 'Undertime Approvals',
+        href: '/undertime/approvals',
+        icon: Clock3,
+        permission: 'undertime.approve',
+        section: 'approvals',
+        badgeLabel: 'pending approvals',
     },
     {
-        title: 'Overtime Approvals', href: '/overtime/approvals', icon: Clock3,
-        permission: 'overtime.approve', section: 'approvals', badgeLabel: 'pending approvals',
+        title: 'Overtime Approvals',
+        href: '/overtime/approvals',
+        icon: Clock3,
+        permission: 'overtime.approve',
+        section: 'approvals',
+        badgeLabel: 'pending approvals',
     },
     {
-        title: 'Travel Order Approvals', href: '/travel-orders/approvals', icon: Plane,
-        permission: 'travel.approve', section: 'approvals', badgeLabel: 'pending approvals',
+        title: 'Travel Order Approvals',
+        href: '/travel-orders/approvals',
+        icon: Plane,
+        permission: 'travel.approve',
+        section: 'approvals',
+        badgeLabel: 'pending approvals',
     },
     {
-        title: 'User Management', href: '/admin/users', icon: Users,
-        permission: 'users.view', section: 'access',
+        title: 'User Management',
+        href: '/admin/users',
+        icon: Users,
+        permission: 'users.view',
+        section: 'access',
     },
     {
-        title: 'Roles & Permissions', href: '/admin/roles', icon: ShieldCheck,
-        permission: 'users.manage-roles', section: 'access',
+        title: 'Roles & Permissions',
+        href: '/admin/roles',
+        icon: ShieldCheck,
+        permission: 'users.manage-roles',
+        section: 'access',
     },
     {
-        title: 'Reports', href: '/reports', icon: FileText,
-        permission: 'reports.view', section: 'reports',
+        title: 'Reports',
+        href: '/reports',
+        icon: FileText,
+        permission: 'reports.view',
+        section: 'reports',
     },
 ];
 
 function normalizePermissions(user: AuthUser): Set<string> {
-    if (!Array.isArray(user.permissions)) return new Set();
+    if (!Array.isArray(user.permissions)) {
+        return new Set();
+    }
 
     return new Set(
-        user.permissions.filter(
-            (permission): permission is string =>
-                typeof permission === 'string' && permission.trim().length > 0,
-        ).map((permission) => permission.trim()),
+        user.permissions
+            .filter(
+                (permission): permission is string =>
+                    typeof permission === 'string' &&
+                    permission.trim().length > 0,
+            )
+            .map((permission) => permission.trim()),
     );
 }
 
@@ -144,23 +183,29 @@ function normalizeRoles(user: AuthUser): Set<string> {
 
     return new Set(
         suppliedRoles
-            .filter((role): role is string => typeof role === 'string')
+            .filter(
+                (role): role is string => typeof role === 'string',
+            )
             .map((role) => role.trim().toLowerCase())
             .filter(Boolean),
     );
 }
 
 function safeCount(value: number | undefined): number {
-    return typeof value === 'number' && Number.isFinite(value)
-        ? Math.max(0, Math.floor(value))
-        : 0;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return 0;
+    }
+
+    return Math.max(0, Math.floor(value));
 }
 
 export function AppSidebar() {
     const { props } = usePage<PageProps>();
     const user = props.auth?.user ?? null;
 
-    if (!user) return null;
+    if (!user) {
+        return null;
+    }
 
     const permissions = normalizePermissions(user);
     const roles = normalizeRoles(user);
@@ -180,11 +225,17 @@ export function AppSidebar() {
 
     const visibleNavItems = mainNavItems
         .filter((item) => {
-            // Fail closed if the item has no permission or the permission is absent.
-            if (!item.permission || !permissions.has(item.permission)) return false;
+            if (!permissions.has(item.permission)) {
+                return false;
+            }
 
-            // Product policy: administrators use administration tools, not employee requests/approvals.
-            if (isAdmin && (item.section === 'requests' || item.section === 'approvals')) {
+            // Preserve the existing policy that administrators
+            // use administration tools rather than request menus.
+            if (
+                isAdmin &&
+                (item.section === 'requests' ||
+                    item.section === 'approvals')
+            ) {
                 return false;
             }
 
@@ -205,7 +256,11 @@ export function AppSidebar() {
                             asChild
                             className="h-16 rounded-lg hover:bg-transparent"
                         >
-                            <Link href={dashboard()} prefetch aria-label="BHF Rural Bank dashboard">
+                            <Link
+                                href={dashboard()}
+                                prefetch
+                                aria-label="BHF Rural Bank dashboard"
+                            >
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center">
                                         <img
@@ -214,6 +269,7 @@ export function AppSidebar() {
                                             className="h-10 w-10 object-contain"
                                         />
                                     </div>
+
                                     <div className="flex min-w-0 flex-col leading-tight">
                                         <span className="truncate text-sm font-semibold text-slate-900">
                                             BHF Rural Bank
