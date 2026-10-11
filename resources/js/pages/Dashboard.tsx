@@ -1,36 +1,25 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
-    ArrowUpDown,
     ArrowUpRight,
-    Bell,
     CalendarDays,
+    CheckCircle2,
     ChevronRight,
     Clock3,
     FileText,
-    Plane,
+    KeyRound,
+    ListChecks,
     Search,
     ShieldCheck,
-    TrendingUp,
     Users,
+    XCircle,
 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import type { ElementType } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-
-import {
-    flexRender,
-    getCoreRowModel,
-    getFilteredRowModel,
-    getSortedRowModel,
-    useReactTable,
-    type ColumnDef,
-    type SortingState,
-} from '@tanstack/react-table';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
 import {
     Table,
     TableBody,
@@ -40,1220 +29,696 @@ import {
     TableRow,
 } from '@/components/ui/table';
 
-import { dashboard } from '@/routes';
-
-/*
-|--------------------------------------------------------------------------
-| Types
-|--------------------------------------------------------------------------
-*/
-
-type Role = 'admin' | 'coo' | 'hr' | 'manager' | 'employee';
-
-type Status = 'Approved' | 'Pending' | 'Rejected';
-
-interface DashboardUser {
+type DashboardUser = {
     id: number;
     name: string;
-    role?: Role;
-    position?: string | null;
-}
+    email: string;
+    role: string | null;
+    roles: string[];
+    permissions: string[];
+    position: string | null;
+};
+
+type Stat = {
+    key: string;
+    label: string;
+    value: number | null;
+    description: string;
+};
+
+type RequestItem = {
+    id: number;
+    reference: string;
+    employee: string;
+    employeeNumber: string | null;
+    department: string;
+    type: string;
+    date: string | null;
+    status: string;
+    url: string;
+};
+
+type AdminUser = {
+    id: number;
+    name: string;
+    email: string;
+    createdAt: string | null;
+};
 
 type PageProps = {
     user: DashboardUser;
-};
-
-interface RequestItem {
-    id: string;
-    employee: string;
-    department: string;
-    type: string;
-    date: string;
-    status: Status;
-}
-
-interface StatItem {
-    label: string;
-    value: string;
-    description: string;
-    icon: ElementType;
-    accent: 'purple' | 'blue' | 'yellow' | 'green';
-}
-
-interface QuickActionItem {
-    title: string;
-    description: string;
-    icon: ElementType;
-}
-
-interface RoleConfig {
-    title: string;
-    description: string;
-    requestTitle: string;
-    quickActions: QuickActionItem[];
-}
-
-/*
-|--------------------------------------------------------------------------
-| Brand
-|--------------------------------------------------------------------------
-*/
-
-const brand = {
-    purple: '#3F2A8F',
-    blue: '#4B7BC0',
-    yellow: '#F0E600',
-};
-
-/*
-|--------------------------------------------------------------------------
-| Dashboard data
-|--------------------------------------------------------------------------
-*/
-
-const requests: RequestItem[] = [
-    {
-        id: 'REQ-00124',
-        employee: 'Maria Santos',
-        department: 'Operations',
-        type: 'Leave Application',
-        date: 'Sep 11, 2026',
-        status: 'Pending',
-    },
-    {
-        id: 'REQ-00123',
-        employee: 'John Dela Cruz',
-        department: 'Finance',
-        type: 'Overtime',
-        date: 'Sep 10, 2026',
-        status: 'Approved',
-    },
-    {
-        id: 'REQ-00122',
-        employee: 'Angela Ramos',
-        department: 'Human Resources',
-        type: 'Travel Order',
-        date: 'Sep 10, 2026',
-        status: 'Approved',
-    },
-    {
-        id: 'REQ-00121',
-        employee: 'Carlos Mendoza',
-        department: 'Information Technology',
-        type: 'Undertime',
-        date: 'Sep 09, 2026',
-        status: 'Pending',
-    },
-    {
-        id: 'REQ-00120',
-        employee: 'Sofia Garcia',
-        department: 'Loans',
-        type: 'Leave Application',
-        date: 'Sep 09, 2026',
-        status: 'Rejected',
-    },
-];
-
-const roleConfig: Record<Role, RoleConfig> = {
-    admin: {
-        title: 'Administrator',
-        description:
-            'Manage users, permissions, system configuration, and operational access.',
-        requestTitle: 'Recent system activity',
-        quickActions: [
-            {
-                title: 'User management',
-                description: 'Manage employee accounts',
-                icon: Users,
-            },
-            {
-                title: 'Roles & permissions',
-                description: 'Manage access controls',
-                icon: ShieldCheck,
-            },
-            {
-                title: 'System settings',
-                description: 'Configure system options',
-                icon: Clock3,
-            },
-        ],
-    },
-
-    coo: {
-        title: 'Executive overview',
-        description:
-            'Review approvals and monitor operational activity across the organization.',
-        requestTitle: 'Requests requiring attention',
-        quickActions: [
-            {
-                title: 'Approval queue',
-                description: 'Review pending approvals',
-                icon: FileText,
-            },
-            {
-                title: 'Travel orders',
-                description: 'Review travel requests',
-                icon: Plane,
-            },
-            {
-                title: 'Operations overview',
-                description: 'View operational activity',
-                icon: TrendingUp,
-            },
-        ],
-    },
-
-    hr: {
-        title: 'Human resources',
-        description:
-            'Monitor employee requests and manage workforce operations.',
-        requestTitle: 'Recent employee requests',
-        quickActions: [
-            {
-                title: 'Leave applications',
-                description: 'Review employee leave',
-                icon: CalendarDays,
-            },
-            {
-                title: 'Undertime',
-                description: 'Manage undertime requests',
-                icon: Clock3,
-            },
-            {
-                title: 'Overtime',
-                description: 'Review overtime requests',
-                icon: TrendingUp,
-            },
-            {
-                title: 'Travel orders',
-                description: 'Manage employee travel',
-                icon: Plane,
-            },
-        ],
-    },
-
-    manager: {
-        title: 'Team operations',
-        description:
-            'Review your team’s requests and manage day-to-day operations.',
-        requestTitle: 'Team requests',
-        quickActions: [
-            {
-                title: 'Leave applications',
-                description: 'Review team leave requests',
-                icon: CalendarDays,
-            },
-            {
-                title: 'Undertime',
-                description: 'Review team undertime',
-                icon: Clock3,
-            },
-            {
-                title: 'Overtime',
-                description: 'Review team overtime',
-                icon: TrendingUp,
-            },
-            {
-                title: 'Travel orders',
-                description: 'Review team travel',
-                icon: Plane,
-            },
-        ],
-    },
-
-    employee: {
-        title: 'Your workspace',
-        description:
-            'Submit requests, review their status, and keep track of your activities.',
-        requestTitle: 'My recent requests',
-        quickActions: [
-            {
-                title: 'Leave application',
-                description: 'Submit a leave request',
-                icon: CalendarDays,
-            },
-            {
-                title: 'Undertime',
-                description: 'Submit an undertime request',
-                icon: Clock3,
-            },
-            {
-                title: 'Overtime',
-                description: 'Submit an overtime request',
-                icon: TrendingUp,
-            },
-            {
-                title: 'Travel order',
-                description: 'Create a travel request',
-                icon: Plane,
-            },
-        ],
-    },
-};
-
-const roleStats: Record<Role, StatItem[]> = {
-    admin: [
-        {
-            label: 'Total users',
-            value: '50',
-            description: 'Active system users',
-            icon: Users,
-            accent: 'purple',
-        },
-        {
-            label: 'Pending access',
-            value: '3',
-            description: 'Needs your review',
-            icon: ShieldCheck,
-            accent: 'yellow',
-        },
-        {
-            label: 'Active roles',
-            value: '5',
-            description: 'Configured roles',
-            icon: FileText,
-            accent: 'blue',
-        },
-        {
-            label: 'System alerts',
-            value: '2',
-            description: 'Requires attention',
-            icon: Bell,
-            accent: 'yellow',
-        },
-    ],
-
-    coo: [
-        {
-            label: 'Pending approvals',
-            value: '12',
-            description: 'Needs your review',
-            icon: FileText,
-            accent: 'purple',
-        },
-        {
-            label: 'Leave requests',
-            value: '8',
-            description: 'Across organization',
-            icon: CalendarDays,
-            accent: 'blue',
-        },
-        {
-            label: 'Time requests',
-            value: '5',
-            description: 'Overtime & undertime',
-            icon: Clock3,
-            accent: 'yellow',
-        },
-        {
-            label: 'Travel orders',
-            value: '4',
-            description: 'Awaiting approval',
-            icon: Plane,
-            accent: 'blue',
-        },
-    ],
-
-    hr: [
-        {
-            label: 'Pending requests',
-            value: '12',
-            description: 'Needs your review',
-            icon: FileText,
-            accent: 'purple',
-        },
-        {
-            label: 'Leave requests',
-            value: '8',
-            description: '3 awaiting approval',
-            icon: CalendarDays,
-            accent: 'blue',
-        },
-        {
-            label: 'Time requests',
-            value: '5',
-            description: 'Overtime & undertime',
-            icon: Clock3,
-            accent: 'yellow',
-        },
-        {
-            label: 'Travel orders',
-            value: '4',
-            description: '2 awaiting approval',
-            icon: Plane,
-            accent: 'blue',
-        },
-    ],
-
-    manager: [
-        {
-            label: 'Pending approvals',
-            value: '6',
-            description: 'Needs your review',
-            icon: FileText,
-            accent: 'purple',
-        },
-        {
-            label: 'Team members',
-            value: '8',
-            description: 'Within your scope',
-            icon: Users,
-            accent: 'blue',
-        },
-        {
-            label: 'Leave requests',
-            value: '4',
-            description: 'From your team',
-            icon: CalendarDays,
-            accent: 'yellow',
-        },
-        {
-            label: 'Time requests',
-            value: '3',
-            description: 'Awaiting review',
-            icon: Clock3,
-            accent: 'purple',
-        },
-    ],
-
-    employee: [
-        {
-            label: 'Pending requests',
-            value: '2',
-            description: 'Awaiting approval',
-            icon: FileText,
-            accent: 'purple',
-        },
-        {
-            label: 'Approved requests',
-            value: '8',
-            description: 'This year',
-            icon: ShieldCheck,
-            accent: 'blue',
-        },
-        {
-            label: 'Leave balance',
-            value: '12',
-            description: 'Available days',
-            icon: CalendarDays,
-            accent: 'yellow',
-        },
-        {
-            label: 'Travel orders',
-            value: '1',
-            description: 'Active request',
-            icon: Plane,
-            accent: 'blue',
-        },
-    ],
-};
-
-/*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
-
-function getInitials(name: string) {
-    return name
-        .split(' ')
-        .filter(Boolean)
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
-}
-
-function formatRole(role: Role) {
-    switch (role) {
-        case 'admin':
-            return 'Administrator';
-
-        case 'coo':
-            return 'COO';
-
-        case 'hr':
-            return 'HR Administrator';
-
-        case 'manager':
-            return 'Manager / Head';
-
-        case 'employee':
-            return 'Employee';
-
-        default:
-            return 'User';
-    }
-}
-
-/*
-|--------------------------------------------------------------------------
-| Status badge
-|--------------------------------------------------------------------------
-*/
-
-function StatusBadge({ status }: { status: Status }) {
-    const styles: Record<
-        Status,
-        {
-            wrapper: string;
-            dot: string;
-        }
-    > = {
-        Approved: {
-            wrapper: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-            dot: 'bg-emerald-500',
-        },
-
-        Pending: {
-            wrapper: 'border-amber-200 bg-amber-50 text-amber-700',
-            dot: 'bg-amber-500',
-        },
-
-        Rejected: {
-            wrapper: 'border-red-200 bg-red-50 text-red-700',
-            dot: 'bg-red-500',
-        },
+    dashboard: {
+        admin: null | {
+            totalUsers: number;
+            activeUsers: number;
+            roles: number;
+            permissions: number;
+            recentUsers: AdminUser[];
+        };
+        stats: Stat[];
+        recentRequests: RequestItem[];
+        pendingApprovals: number;
+        pendingHrProcessing: number;
+        can: {
+            viewEmployees: boolean;
+            viewLeave: boolean;
+            approveLeave: boolean;
+            processLeave: boolean;
+        };
     };
+};
 
-    const style = styles[status];
+const brand = '#3F2A8F';
 
+const roleDescriptions: Record<string, string> = {
+    admin: 'Manage access, accounts, roles, and system configuration.',
+    coo: 'Review assigned approvals and monitor requests requiring executive attention.',
+    hr: 'Track employee leave requests and manage post-approval HR processing.',
+    manager: 'Review requests assigned to you and follow your team’s activity.',
+    employee: 'Submit requests and keep track of your application status.',
+};
+
+const statIcons: Record<string, ElementType> = {
+    users: Users,
+    leaves: CalendarDays,
+    pending: Clock3,
+    approved: CheckCircle2,
+    rejected: XCircle,
+    my_approvals: ShieldCheck,
+    hr_processing: ListChecks,
+};
+
+const statAccents: Record<string, string> = {
+    users: 'border-l-slate-400 bg-slate-100 text-slate-700',
+    leaves: 'border-l-[#3F2A8F] bg-[#F3F1FA] text-[#3F2A8F]',
+    pending: 'border-l-amber-500 bg-amber-50 text-amber-700',
+    approved: 'border-l-emerald-500 bg-emerald-50 text-emerald-700',
+    rejected: 'border-l-rose-500 bg-rose-50 text-rose-700',
+    my_approvals: 'border-l-blue-500 bg-blue-50 text-blue-700',
+    hr_processing: 'border-l-violet-500 bg-violet-50 text-violet-700',
+};
+
+function initials(name?: string | null) {
     return (
-        <Badge
-            variant="outline"
-            className={`rounded-md px-2 py-1 text-[11px] font-semibold ${style.wrapper}`}
-        >
-            <span
-                className={`mr-1.5 h-1.5 w-1.5 rounded-full ${style.dot}`}
-            />
-            {status}
-        </Badge>
+        (name ?? 'User')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join('')
+            .toUpperCase() || 'U'
     );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Stat accent
-|--------------------------------------------------------------------------
-*/
+function prettyRole(role?: string | null) {
+    if (!role) return 'User';
 
-function getStatAccent(accent: StatItem['accent']) {
-    switch (accent) {
-        case 'purple':
-            return {
-                border: 'border-l-[#3F2A8F]',
-                icon: 'bg-[#F3F1FA] text-[#3F2A8F]',
-            };
-
-        case 'blue':
-            return {
-                border: 'border-l-[#4B7BC0]',
-                icon: 'bg-[#EFF4FA] text-[#3567A8]',
-            };
-
-        case 'yellow':
-            return {
-                border: 'border-l-[#D8CC00]',
-                icon: 'bg-[#FFFBEA] text-[#756B00]',
-            };
-
-        case 'green':
-            return {
-                border: 'border-l-emerald-500',
-                icon: 'bg-emerald-50 text-emerald-700',
-            };
-    }
+    return role === 'hr'
+        ? 'HR'
+        : role === 'coo'
+          ? 'COO'
+          : role.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-/*
-|--------------------------------------------------------------------------
-| Dashboard
-|--------------------------------------------------------------------------
-*/
+function statusStyle(status: string) {
+    const normalized = status.toLowerCase();
+
+    if (normalized.includes('reject')) {
+        return 'border-rose-200 bg-rose-50 text-rose-700';
+    }
+
+    if (normalized.includes('approv') && !normalized.includes('pending')) {
+        return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    }
+
+    if (normalized.includes('pending') || normalized.includes('approval')) {
+        return 'border-amber-200 bg-amber-50 text-amber-800';
+    }
+
+    return 'border-slate-200 bg-slate-50 text-slate-600';
+}
+
+function SectionHeading({
+    eyebrow,
+    title,
+    description,
+}: {
+    eyebrow?: string;
+    title: string;
+    description?: string;
+}) {
+    return (
+        <div className="min-w-0">
+            {eyebrow && (
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    {eyebrow}
+                </p>
+            )}
+            <h2 className="text-sm font-semibold tracking-tight text-slate-900 sm:text-base">
+                {title}
+            </h2>
+            {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}
+        </div>
+    );
+}
+
+function ShortcutLink({
+    href,
+    icon: Icon,
+    title,
+    description,
+    iconClass = 'bg-[#F3F1FA] text-[#3F2A8F]',
+}: {
+    href: string;
+    icon: ElementType;
+    title: string;
+    description: string;
+    iconClass?: string;
+}) {
+    return (
+        <Link
+            href={href}
+            className="group flex min-w-0 items-center gap-3 rounded-xl px-4 py-3 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3F2A8F]/30"
+        >
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconClass}`}>
+                <Icon className="h-4 w-4" strokeWidth={1.8} />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-slate-800">{title}</span>
+                <span className="mt-0.5 block truncate text-xs text-slate-500">{description}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" />
+        </Link>
+    );
+}
 
 export default function Dashboard() {
-    const { user } = usePage<PageProps>().props;
+    const { user, dashboard } = usePage<PageProps>().props;
+    const role = user.roles.includes('admin') ? 'admin' : (user.role ?? 'employee');
+    const isAdmin = role === 'admin';
+    const [search, setSearch] = useState('');
 
-    const role: Role =
-        user.role && roleConfig[user.role] ? user.role : 'employee';
+    const filteredRequests = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        if (!term) return dashboard.recentRequests;
 
-    const config = roleConfig[role];
-    const stats = roleStats[role];
+        return dashboard.recentRequests.filter((item) =>
+            [
+                item.reference,
+                item.employee,
+                item.employeeNumber,
+                item.department,
+                item.type,
+                item.status,
+            ].some((value) => String(value ?? '').toLowerCase().includes(term)),
+        );
+    }, [dashboard.recentRequests, search]);
 
-    const [sorting, setSorting] = useState<SortingState>([]);
-    const [globalFilter, setGlobalFilter] = useState('');
-    const [now, setNow] = useState(() => new Date());
-
-    /*
-    |--------------------------------------------------------------------------
-    | Live date/time
-    |--------------------------------------------------------------------------
-    */
-
-    useEffect(() => {
-        const timer = window.setInterval(() => {
-            setNow(new Date());
-        }, 1000);
-
-        return () => window.clearInterval(timer);
-    }, []);
-
-    const formattedDate = now.toLocaleDateString('en-PH', {
-        weekday: 'short',
-        month: 'short',
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('en-PH', {
+        weekday: 'long',
+        month: 'long',
         day: 'numeric',
         year: 'numeric',
     });
 
-    const formattedTime = now.toLocaleTimeString('en-PH', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-    });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Table columns
-    |--------------------------------------------------------------------------
-    */
-
-    const columns = useMemo<ColumnDef<RequestItem>[]>(
-        () => [
-            {
-                accessorKey: 'type',
-
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() =>
-                            column.toggleSorting(
-                                column.getIsSorted() === 'asc',
-                            )
-                        }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
-                    >
-                        Request
-                        <ArrowUpDown className="ml-1.5 h-3 w-3" />
-                    </Button>
-                ),
-
-                cell: ({ row }) => (
-                    <div className="min-w-[190px]">
-                        <p className="text-sm font-semibold text-slate-800">
-                            {row.original.type}
-                        </p>
-
-                        <p className="mt-1 text-[11px] font-medium text-slate-400">
-                            {row.original.id}
-                        </p>
-                    </div>
-                ),
-            },
-
-            {
-                accessorKey: 'employee',
-
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() =>
-                            column.toggleSorting(
-                                column.getIsSorted() === 'asc',
-                            )
-                        }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
-                    >
-                        Employee
-                        <ArrowUpDown className="ml-1.5 h-3 w-3" />
-                    </Button>
-                ),
-
-                cell: ({ row }) => (
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-[#F3F1FA] text-[10px] font-bold text-[#3F2A8F]">
-                                {getInitials(row.original.employee)}
-                            </AvatarFallback>
-                        </Avatar>
-
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-slate-700">
-                                {row.original.employee}
-                            </p>
-
-                            <p className="truncate text-xs text-slate-400">
-                                {row.original.department}
-                            </p>
-                        </div>
-                    </div>
-                ),
-            },
-
-            {
-                accessorKey: 'date',
-
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() =>
-                            column.toggleSorting(
-                                column.getIsSorted() === 'asc',
-                            )
-                        }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
-                    >
-                        Date
-                        <ArrowUpDown className="ml-1.5 h-3 w-3" />
-                    </Button>
-                ),
-
-                cell: ({ row }) => (
-                    <span className="whitespace-nowrap text-sm text-slate-500">
-                        {row.original.date}
-                    </span>
-                ),
-            },
-
-            {
-                accessorKey: 'status',
-
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() =>
-                            column.toggleSorting(
-                                column.getIsSorted() === 'asc',
-                            )
-                        }
-                        className="-ml-2 h-8 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-transparent hover:text-[#3F2A8F]"
-                    >
-                        Status
-                        <ArrowUpDown className="ml-1.5 h-3 w-3" />
-                    </Button>
-                ),
-
-                cell: ({ row }) => (
-                    <StatusBadge status={row.original.status} />
-                ),
-            },
-
-            {
-                id: 'actions',
-                enableSorting: false,
-                enableGlobalFilter: false,
-                header: () => null,
-
-                cell: () => (
-                    <div className="flex justify-end">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg text-slate-300 hover:bg-slate-100 hover:text-[#3F2A8F]"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                ),
-            },
-        ],
-        [],
-    );
-
-    const table = useReactTable({
-        data: requests,
-        columns,
-        state: {
-            sorting,
-            globalFilter,
+    const adminStats = [
+        {
+            label: 'User accounts',
+            value: dashboard.admin?.totalUsers ?? 0,
+            detail: 'Registered accounts',
+            icon: Users,
+            iconClass: 'bg-slate-100 text-slate-700',
         },
-        onSortingChange: setSorting,
-        onGlobalFilterChange: setGlobalFilter,
-        getCoreRowModel: getCoreRowModel(),
-        getSortedRowModel: getSortedRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
-    });
+        {
+            label: 'Active accounts',
+            value: dashboard.admin?.activeUsers ?? 0,
+            detail: 'Marked active in the system',
+            icon: CheckCircle2,
+            iconClass: 'bg-emerald-50 text-emerald-700',
+        },
+        {
+            label: 'Configured roles',
+            value: dashboard.admin?.roles ?? 0,
+            detail: 'Role-based access groups',
+            icon: ShieldCheck,
+            iconClass: 'bg-[#F3F1FA] text-[#3F2A8F]',
+        },
+        {
+            label: 'Permissions',
+            value: dashboard.admin?.permissions ?? 0,
+            detail: 'Available access rules',
+            icon: KeyRound,
+            iconClass: 'bg-blue-50 text-blue-700',
+        },
+    ];
 
-    const filteredRows = table.getRowModel().rows;
+    const quickActions = [
+        ...(user.permissions.includes('leave.create')
+            ? [
+                  {
+                      label: 'New leave application',
+                      description: 'Submit a request for review',
+                      href: '/leave/applications/create',
+                      icon: CalendarDays,
+                      iconClass: 'bg-[#F3F1FA] text-[#3F2A8F]',
+                  },
+              ]
+            : []),
+        ...(dashboard.can.approveLeave
+            ? [
+                  {
+                      label: 'Leave approvals',
+                      description: `${dashboard.pendingApprovals} assigned pending`,
+                      href: '/leave/approvals',
+                      icon: ShieldCheck,
+                      iconClass: 'bg-blue-50 text-blue-700',
+                  },
+              ]
+            : []),
+        ...(dashboard.can.processLeave
+            ? [
+                  {
+                      label: 'Leave processing',
+                      description: 'HR processing workspace',
+                      href: '/leave/processing',
+                      icon: ListChecks,
+                      iconClass: 'bg-violet-50 text-violet-700',
+                  },
+              ]
+            : []),
+        ...(dashboard.can.viewEmployees
+            ? [
+                  {
+                      label: 'Employee directory',
+                      description: 'View employee accounts',
+                      href: '/admin/users',
+                      icon: Users,
+                      iconClass: 'bg-slate-100 text-slate-600',
+                  },
+              ]
+            : []),
+    ];
 
     return (
         <>
             <Head title="Dashboard" />
 
-            <div className="min-h-full bg-[#F5F6F8] text-slate-900">
+            <main className="min-h-full bg-[#F5F6FA] px-3 py-4 text-slate-900 sm:px-5 sm:py-6 lg:px-8">
+                <div className="mx-auto max-w-[1600px] space-y-5">
+                    <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                        <div
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-1"
+                            style={{ backgroundColor: brand }}
+                        />
+                        <div className="flex flex-col gap-5 px-5 py-5 pl-6 sm:px-6 sm:pl-7 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="min-w-0">
+                                <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 sm:text-[11px]">
+                                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                    BHF Operations
+                                    <span className="text-slate-300">/</span>
+                                    <span className="text-[#3F2A8F]">{prettyRole(role)}</span>
+                                </div>
+                                <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+                                    {isAdmin
+                                        ? 'System overview'
+                                        : `Welcome back, ${(user.name || 'there').trim().split(/\s+/)[0]}`}
+                                </h1>
+                                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                                    {roleDescriptions[role] ?? 'Your workspace and assigned operational tasks.'}
+                                </p>
+                            </div>
 
-                <main className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-
-                    {/* ======================================================
-                        PAGE HEADER
-                    ====================================================== */}
-
-                    <header className="mb-6">
-                        <div className="rounded-xl border border-slate-200 bg-white px-6 py-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:px-7">
-
-                            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-
-                                <div>
-                                    <div className="mb-2 flex items-center gap-2">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-[#3F2A8F]" />
-
-                                        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                                            {formatRole(role)}
-                                        </span>
-                                    </div>
-
-                                    <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                                        Good morning, {user.name}
-                                    </h1>
-
-                                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                                        {config.description}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                                    <p className="text-xs font-medium text-slate-500">{dateLabel}</p>
+                                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                                        {user.position || prettyRole(role)}
                                     </p>
                                 </div>
-
-                                <div className="flex items-center gap-3">
-
-                                    <div className="hidden rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 sm:block">
-                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                            {formattedDate}
-                                        </p>
-
-                                        <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700">
-                                            {formattedTime}
-                                        </p>
-                                    </div>
-
-                                    {role !== 'admin' && (
-                                        <Button
-                                            size="sm"
-                                            className="h-10 rounded-lg bg-[#3F2A8F] px-4 text-sm font-semibold text-white shadow-none hover:bg-[#332276]"
-                                        >
+                                {!isAdmin && user.permissions.includes('leave.create') && (
+                                    <Button
+                                        asChild
+                                        className="h-11 rounded-xl px-4 font-semibold shadow-sm"
+                                        style={{ backgroundColor: brand }}
+                                    >
+                                        <Link href="/leave/applications/create">
                                             <FileText className="mr-2 h-4 w-4" />
-                                            New Request
-                                        </Button>
-                                    )}
-                                </div>
+                                            New leave request
+                                        </Link>
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </header>
 
-                    {/* ======================================================
-                        KPI CARDS
-                    ====================================================== */}
-
-                    <section className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-                        {stats.map((stat) => {
-                            const accent = getStatAccent(stat.accent);
-
-                            return (
-                                <div
-                                    key={stat.label}
-                                    className={`rounded-xl border border-slate-200 border-l-4 ${accent.border} bg-white px-5 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.025)] transition-all hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(15,23,42,0.05)]`}
-                                >
-                                    <div className="flex items-start justify-between gap-4">
-
-                                        <div>
-                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                                                {stat.label}
-                                            </p>
-
-                                            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 tabular-nums">
-                                                {stat.value}
-                                            </p>
-
-                                            <p className="mt-1 text-xs text-slate-400">
-                                                {stat.description}
-                                            </p>
+                    {isAdmin ? (
+                        <>
+                            <section
+                                aria-label="System statistics"
+                                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                            >
+                                {adminStats.map((item) => (
+                                    <div
+                                        key={item.label}
+                                        className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-medium text-slate-500">{item.label}</p>
+                                                <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                                                    {item.value.toLocaleString()}
+                                                </p>
+                                                <p className="mt-1 text-xs text-slate-400">{item.detail}</p>
+                                            </div>
+                                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.iconClass}`}>
+                                                <item.icon className="h-5 w-5" strokeWidth={1.8} />
+                                            </span>
                                         </div>
-
-                                        <div
-                                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent.icon}`}
-                                        >
-                                            <stat.icon
-                                                className="h-4 w-4"
-                                                strokeWidth={1.8}
-                                            />
-                                        </div>
-
                                     </div>
-                                </div>
-                            );
-                        })}
+                                ))}
+                            </section>
 
-                    </section>
-
-                    {/* ======================================================
-                        MAIN CONTENT
-                    ====================================================== */}
-
-                    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-
-                        {/* ==================================================
-                            REQUESTS
-                        ================================================== */}
-
-                        <section className="min-w-0">
-
-                            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-
-                                <div>
-                                    <h2 className="text-lg font-semibold tracking-tight text-slate-950">
-                                        {config.requestTitle}
-                                    </h2>
-
-                                    <p className="mt-1 text-xs text-slate-400">
-                                        Recent activity across your workspace
-                                    </p>
-                                </div>
-
-                                <div className="flex w-full items-center gap-2 sm:w-auto">
-
-                                    <div className="relative min-w-0 flex-1 sm:w-[260px]">
-                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                                        <Input
-                                            value={globalFilter}
-                                            onChange={(event) =>
-                                                setGlobalFilter(
-                                                    event.target.value,
-                                                )
-                                            }
-                                            placeholder={
-                                                role === 'employee'
-                                                    ? 'Search your requests...'
-                                                    : 'Search requests, employees...'
-                                            }
-                                            className="h-9 rounded-lg border-slate-200 bg-white pl-9 text-sm shadow-none placeholder:text-slate-400 focus-visible:border-[#3F2A8F]/50 focus-visible:ring-1 focus-visible:ring-[#3F2A8F]/20"
+                            <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                                <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                                        <SectionHeading
+                                            eyebrow="System activity"
+                                            title="Recently added users"
+                                            description="Latest accounts registered in BHF Operations"
                                         />
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-[#3F2A8F]"
-                                        aria-label="Notifications"
-                                    >
-                                        <Bell className="h-4 w-4" />
-
-                                        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F0E600] px-1 text-[8px] font-bold text-slate-800">
-                                            4
+                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
+                                            <Users className="h-4 w-4" />
                                         </span>
-                                    </button>
-
-                                </div>
-                            </div>
-
-                            {/* Request table card */}
-
-                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.025)]">
-
-                                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
-
-                                    <p className="text-xs font-medium text-slate-500">
-                                        Recent requests
-                                    </p>
-
-                                    <button
-                                        type="button"
-                                        className="flex items-center gap-1 text-xs font-semibold text-[#3F2A8F] hover:underline"
-                                    >
-                                        View all
-                                        <ArrowUpRight className="h-3.5 w-3.5" />
-                                    </button>
-
-                                </div>
-
-                                {/* Desktop */}
-
-                                <div className="hidden overflow-x-auto md:block">
-                                    <Table>
-
-                                        <TableHeader>
-                                            {table
-                                                .getHeaderGroups()
-                                                .map((headerGroup) => (
-                                                    <TableRow
-                                                        key={headerGroup.id}
-                                                        className="border-b border-slate-200 bg-slate-50 hover:bg-slate-50"
-                                                    >
-                                                        {headerGroup.headers.map(
-                                                            (header) => (
-                                                                <TableHead
-                                                                    key={
-                                                                        header.id
-                                                                    }
-                                                                    className="h-11 px-5"
-                                                                >
-                                                                    {header
-                                                                        .isPlaceholder
-                                                                        ? null
-                                                                        : flexRender(
-                                                                              header
-                                                                                  .column
-                                                                                  .columnDef
-                                                                                  .header,
-                                                                              header.getContext(),
-                                                                          )}
-                                                                </TableHead>
-                                                            ),
-                                                        )}
-                                                    </TableRow>
-                                                ))}
-                                        </TableHeader>
-
-                                        <TableBody>
-
-                                            {filteredRows.length > 0 ? (
-                                                filteredRows.map((row) => (
-                                                    <TableRow
-                                                        key={row.id}
-                                                        className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50/80"
-                                                    >
-                                                        {row
-                                                            .getVisibleCells()
-                                                            .map((cell) => (
-                                                                <TableCell
-                                                                    key={
-                                                                        cell.id
-                                                                    }
-                                                                    className="px-5 py-4"
-                                                                >
-                                                                    {flexRender(
-                                                                        cell
-                                                                            .column
-                                                                            .columnDef
-                                                                            .cell,
-                                                                        cell.getContext(),
-                                                                    )}
-                                                                </TableCell>
-                                                            ))}
-                                                    </TableRow>
-                                                ))
-                                            ) : (
-                                                <TableRow>
-                                                    <TableCell
-                                                        colSpan={
-                                                            columns.length
-                                                        }
-                                                        className="h-32 text-center text-sm text-slate-400"
-                                                    >
-                                                        No requests match your
-                                                        search.
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-
-                                        </TableBody>
-
-                                    </Table>
-                                </div>
-
-                                {/* Mobile */}
-
-                                <div className="divide-y divide-slate-100 md:hidden">
-
-                                    {filteredRows.length > 0 ? (
-                                        filteredRows.map((row) => {
-                                            const request = row.original;
-
-                                            return (
-                                                <div
-                                                    key={request.id}
-                                                    className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-slate-50"
-                                                >
-                                                    <Avatar className="h-9 w-9 shrink-0">
-                                                        <AvatarFallback className="bg-[#F3F1FA] text-[10px] font-semibold text-[#3F2A8F]">
-                                                            {getInitials(
-                                                                request.employee,
-                                                            )}
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {(dashboard.admin?.recentUsers ?? []).length ? (
+                                            dashboard.admin!.recentUsers.map((item) => (
+                                                <div key={item.id} className="flex items-center gap-3 px-5 py-4 sm:px-6">
+                                                    <Avatar className="h-10 w-10 shrink-0">
+                                                        <AvatarFallback className="bg-[#F3F1FA] text-xs font-semibold text-[#3F2A8F]">
+                                                            {initials(item.name)}
                                                         </AvatarFallback>
                                                     </Avatar>
-
                                                     <div className="min-w-0 flex-1">
-
-                                                        <div className="flex items-start justify-between gap-3">
-
-                                                            <div className="min-w-0">
-                                                                <p className="truncate text-sm font-semibold text-slate-800">
-                                                                    {
-                                                                        request.type
-                                                                    }
-                                                                </p>
-
-                                                                <p className="mt-1 truncate text-xs text-slate-500">
-                                                                    {
-                                                                        request.employee
-                                                                    }
-                                                                </p>
-                                                            </div>
-
-                                                            <StatusBadge
-                                                                status={
-                                                                    request.status
-                                                                }
-                                                            />
-
-                                                        </div>
-
-                                                        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
-                                                            <span>
-                                                                {request.id}
-                                                            </span>
-
-                                                            <span>
-                                                                {request.date}
-                                                            </span>
-                                                        </div>
-
+                                                        <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                                                        <p className="truncate text-xs text-slate-500">{item.email}</p>
                                                     </div>
+                                                    <span className="hidden whitespace-nowrap text-xs text-slate-400 sm:block">
+                                                        {item.createdAt ?? '—'}
+                                                    </span>
                                                 </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="px-4 py-12 text-center text-sm text-slate-400">
-                                            No requests match your search.
-                                        </div>
-                                    )}
-
+                                            ))
+                                        ) : (
+                                            <p className="px-5 py-12 text-center text-sm text-slate-500">
+                                                No user accounts found.
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
-                            </div>
-                        </section>
-
-                        {/* ==================================================
-                            SIDEBAR
-                        ================================================== */}
-
-                        <aside className="space-y-5">
-
-                            {/* Quick actions */}
-
-                            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.025)]">
-
-                                <div className="border-b border-slate-200 px-5 py-4">
-
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#4B7BC0]">
-                                        Shortcuts
-                                    </p>
-
-                                    <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-950">
-                                        Quick actions
-                                    </h2>
-
-                                    <p className="mt-1 text-xs text-slate-400">
-                                        Common tasks and shortcuts
-                                    </p>
-
-                                </div>
-
-                                <div className="divide-y divide-slate-100">
-
-                                    {config.quickActions.map((action) => (
-                                        <button
-                                            type="button"
-                                            key={action.title}
-                                            className="group flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50"
-                                        >
-                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors group-hover:bg-[#F3F1FA] group-hover:text-[#3F2A8F]">
-                                                <action.icon
-                                                    className="h-4 w-4"
-                                                    strokeWidth={1.8}
+                                <aside className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
+                                    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+                                        <SectionHeading
+                                            eyebrow="Administration"
+                                            title="Access management"
+                                            description="Accounts and authorization"
+                                        />
+                                        <div className="mt-4 space-y-2">
+                                            {dashboard.can.viewEmployees && (
+                                                <ShortcutLink
+                                                    href="/admin/users"
+                                                    icon={Users}
+                                                    title="Manage users"
+                                                    description="Accounts and employee access"
                                                 />
+                                            )}
+                                            {user.permissions.includes('users.manage-roles') && (
+                                                <ShortcutLink
+                                                    href="/admin/roles"
+                                                    icon={KeyRound}
+                                                    title="Roles & permissions"
+                                                    description="Configure access rules"
+                                                />
+                                            )}
+                                            {!dashboard.can.viewEmployees &&
+                                                !user.permissions.includes('users.manage-roles') && (
+                                                    <p className="py-2 text-sm text-slate-500">
+                                                        No access-management shortcuts are assigned.
+                                                    </p>
+                                                )}
+                                        </div>
+                                    </section>
+
+                                    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-10 w-10">
+                                                <AvatarFallback className="bg-slate-100 text-sm font-semibold text-slate-700">
+                                                    {initials(user.name)}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0">
+                                                <h2 className="text-sm font-semibold text-slate-900">Signed-in account</h2>
+                                                <p className="text-xs text-slate-500">Current administrator</p>
                                             </div>
+                                        </div>
+                                        <p className="mt-4 truncate text-sm font-semibold text-slate-800">{user.name}</p>
+                                        <p className="mt-1 break-all text-xs leading-5 text-slate-500">{user.email}</p>
+                                        <Badge
+                                            variant="outline"
+                                            className="mt-3 border-emerald-200 bg-emerald-50 text-emerald-700"
+                                        >
+                                            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                            Authenticated
+                                        </Badge>
+                                    </section>
+                                </aside>
+                            </section>
+                        </>
+                    ) : (
+                        <>
+                            <section
+                                aria-label="Dashboard statistics"
+                                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5"
+                            >
+                                {dashboard.stats.map((stat) => {
+                                    const Icon = statIcons[stat.key] ?? FileText;
+                                    const accent = statAccents[stat.key] ?? 'border-l-slate-300 bg-slate-100 text-slate-600';
+                                    const [borderAccent, ...iconAccent] = accent.split(' ');
 
-                                            <div className="min-w-0 flex-1">
-                                                <p className="truncate text-sm font-semibold text-slate-800">
-                                                    {action.title}
-                                                </p>
-
-                                                <p className="mt-0.5 truncate text-xs text-slate-400">
-                                                    {action.description}
-                                                </p>
+                                    return (
+                                        <div
+                                            key={stat.key}
+                                            className={`min-w-0 rounded-2xl border border-slate-200/80 border-l-[3px] ${borderAccent} bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-medium text-slate-500">{stat.label}</p>
+                                                    <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                                                        {stat.value ?? '—'}
+                                                    </p>
+                                                    <p className="mt-1 text-xs leading-5 text-slate-400">{stat.description}</p>
+                                                </div>
+                                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconAccent.join(' ')}`}>
+                                                    <Icon className="h-5 w-5" strokeWidth={1.8} />
+                                                </span>
                                             </div>
-
-                                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-[#3F2A8F]" />
-                                        </button>
-                                    ))}
-
-                                </div>
-
+                                        </div>
+                                    );
+                                })}
                             </section>
 
-                            {/* Access information */}
-
-                            <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.025)]">
-
-                                <div className="border-b border-slate-200 px-5 py-4">
-
-                                    <div className="flex items-center justify-between gap-4">
-
-                                        <div>
-                                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#4B7BC0]">
-                                                Access
-                                            </p>
-
-                                            <h2 className="mt-1 text-base font-semibold tracking-tight text-slate-950">
-                                                {user.position ||
-                                                    formatRole(role)}
-                                            </h2>
+                            <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+                                <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                                    <div className="flex flex-col justify-between gap-4 border-b border-slate-100 px-4 py-4 sm:px-5 lg:flex-row lg:items-center">
+                                        <SectionHeading
+                                            eyebrow="Request activity"
+                                            title={
+                                                role === 'employee'
+                                                    ? 'My recent requests'
+                                                    : role === 'hr'
+                                                      ? 'Recent employee leave applications'
+                                                      : 'Recent requests'
+                                            }
+                                            description="Records available to your account"
+                                        />
+                                        <div className="relative w-full lg:max-w-[260px]">
+                                            <Search
+                                                aria-hidden="true"
+                                                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                                            />
+                                            <Input
+                                                value={search}
+                                                onChange={(event) => setSearch(event.target.value)}
+                                                placeholder="Search requests..."
+                                                aria-label="Search recent requests"
+                                                className="h-10 rounded-xl border-slate-200 bg-slate-50/70 pl-9 text-sm focus-visible:bg-white"
+                                            />
                                         </div>
-
-                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F3F1FA] text-[#3F2A8F]">
-                                            <ShieldCheck className="h-4 w-4" />
-                                        </div>
-
                                     </div>
 
-                                </div>
-
-                                <div className="px-5 py-4">
-
-                                    <p className="text-sm leading-6 text-slate-500">
-                                        {config.title}. Your dashboard content
-                                        is based on your assigned access level.
-                                    </p>
-
-                                    <div className="mt-4 grid grid-cols-2 gap-3">
-
-                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                                            <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                                                Role
-                                            </p>
-
-                                            <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
-                                                {role}
-                                            </p>
-                                        </div>
-
-                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                                            <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                                                Access
-                                            </p>
-
-                                            <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                Authorized
-                                            </p>
-                                        </div>
-
+                                    <div className="hidden overflow-x-auto md:block">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                                                    {['Reference / request', 'Employee', 'Date filed', 'Status', ''].map((heading) => (
+                                                        <TableHead
+                                                            key={heading}
+                                                            className="h-11 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"
+                                                        >
+                                                            {heading}
+                                                        </TableHead>
+                                                    ))}
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {filteredRequests.length ? (
+                                                    filteredRequests.map((item) => (
+                                                        <TableRow key={item.id} className="transition-colors hover:bg-slate-50/70">
+                                                            <TableCell className="py-3.5">
+                                                                <div className="font-semibold text-slate-800">{item.type}</div>
+                                                                <div className="mt-1 text-xs text-slate-400">{item.reference}</div>
+                                                            </TableCell>
+                                                            <TableCell className="py-3.5">
+                                                                <div className="flex items-center gap-3">
+                                                                    <Avatar className="h-8 w-8">
+                                                                        <AvatarFallback className="bg-[#F3F1FA] text-[10px] font-semibold text-[#3F2A8F]">
+                                                                            {initials(item.employee)}
+                                                                        </AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="min-w-0">
+                                                                        <p className="max-w-[220px] truncate text-sm font-medium text-slate-700">
+                                                                            {item.employee}
+                                                                        </p>
+                                                                        <p className="max-w-[220px] truncate text-xs text-slate-400">
+                                                                            {item.employeeNumber || item.department}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="whitespace-nowrap py-3.5 text-sm text-slate-500">
+                                                                {item.date ?? '—'}
+                                                            </TableCell>
+                                                            <TableCell className="py-3.5">
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`whitespace-nowrap font-medium ${statusStyle(item.status)}`}
+                                                                >
+                                                                    {item.status.replaceAll('_', ' ')}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="py-3.5 text-right">
+                                                                <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                                                                    <Link href={item.url} aria-label={`View ${item.reference}`}>
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    </Link>
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="h-28 text-center text-sm text-slate-500">
+                                                            No matching requests found.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
                                     </div>
 
+                                    <div className="divide-y divide-slate-100 md:hidden">
+                                        {filteredRequests.length ? (
+                                            filteredRequests.map((item) => (
+                                                <Link
+                                                    key={item.id}
+                                                    href={item.url}
+                                                    className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#3F2A8F]/30"
+                                                >
+                                                    <Avatar className="h-10 w-10 shrink-0">
+                                                        <AvatarFallback className="bg-[#F3F1FA] text-xs font-semibold text-[#3F2A8F]">
+                                                            {initials(item.employee)}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <p className="truncate text-sm font-semibold text-slate-800">{item.type}</p>
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={`shrink-0 text-[10px] ${statusStyle(item.status)}`}
+                                                            >
+                                                                {item.status.replaceAll('_', ' ')}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="mt-1 truncate text-xs text-slate-500">
+                                                            {item.employee} · {item.reference}
+                                                        </p>
+                                                        <p className="mt-1 text-[11px] text-slate-400">{item.date ?? '—'}</p>
+                                                    </div>
+                                                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                                                </Link>
+                                            ))
+                                        ) : (
+                                            <p className="px-4 py-10 text-center text-sm text-slate-500">
+                                                No matching requests found.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                                        <span className="text-xs text-slate-400">
+                                            Showing {filteredRequests.length} recent record(s)
+                                        </span>
+                                        {dashboard.can.viewLeave && (
+                                            <Link
+                                                href="/leave/applications"
+                                                className="inline-flex items-center gap-1 self-start text-xs font-semibold text-[#3F2A8F] hover:underline sm:self-auto"
+                                            >
+                                                View leave applications
+                                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                            </Link>
+                                        )}
+                                    </div>
                                 </div>
 
+                                <aside className="min-w-0 rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                                    <div className="border-b border-slate-100 px-5 py-4">
+                                        <SectionHeading
+                                            eyebrow="Workspace"
+                                            title="Quick actions"
+                                            description="Shortcuts based on your access"
+                                        />
+                                    </div>
+                                    <div className="divide-y divide-slate-100 p-1.5">
+                                        {quickActions.length ? (
+                                            quickActions.map((action) => (
+                                                <ShortcutLink
+                                                    key={action.label}
+                                                    href={action.href}
+                                                    icon={action.icon}
+                                                    title={action.label}
+                                                    description={action.description}
+                                                    iconClass={action.iconClass}
+                                                />
+                                            ))
+                                        ) : (
+                                            <p className="px-4 py-8 text-sm leading-6 text-slate-500">
+                                                No quick actions are assigned to this account.
+                                            </p>
+                                        )}
+                                    </div>
+                                </aside>
                             </section>
-
-                        </aside>
-                    </div>
-                </main>
-            </div>
+                        </>
+                    )}
+                </div>
+            </main>
         </>
     );
 }
 
 Dashboard.layout = {
-    breadcrumbs: [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-        },
-    ],
+    breadcrumbs: [{ title: 'Dashboard', href: '/dashboard' }],
 };
