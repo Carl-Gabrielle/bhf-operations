@@ -2,14 +2,14 @@
     "$schema": "https://www.schemastore.org/package.json",
     "private": true,
     "type": "module",
-    "scripts": {
-        "build": "vp build",
-        "build:ssr": "vp build && vp build --ssr",
-        "dev": "vp dev",
-        "check": "vp check",
-        "check:fix": "vp check --fix",
-        "types:check": "tsc --noEmit"
-    },
+   
+"scripts": {
+    "build": "vite build",
+    "build:ssr": "npm run build && vite build --ssr",
+    "dev": "vite",
+    "types:check": "tsc --noEmit"
+}
+,
     "dependencies": {
         "@inertiajs/react": "^3.0.0",
         "@inertiajs/vite": "^3.0.0",
