@@ -33,49 +33,116 @@ class LeaveApprovalController extends Controller
      * The inbox is based on an explicit pending assignment, not merely
      * on the employee's current reporting-manager relationship.
      */
-    public function index(Request $request): Response
-    {
-        $user = $this->authorizeApprover($request);
+   
+/**
+ * Display the approver dashboard, pending inbox, and decision history.
+ */
+public function index(Request $request): Response
+{
+    $user = $this->authorizeApprover($request);
 
-        $applications = LeaveApplication::query()
-            ->where('status', LeaveApplicationStatus::PendingApproval->value)
-            ->whereHas('approvals', fn ($query) => $query
+    // Applications that still require this approver's action.
+    $pendingQuery = LeaveApplication::query()
+        ->where(
+            'status',
+            LeaveApplicationStatus::PendingApproval->value
+        )
+        ->whereHas('approvals', fn ($query) => $query
+            ->where('approver_id', $user->id)
+            ->where('action', 'pending'));
+
+    $applications = (clone $pendingQuery)
+        ->with([
+            'employee:id,name,employee_number,organizational_unit_id,position_id',
+            'employee.organizationalUnit',
+            'employee.position',
+            'leaveType',
+            'approvalWorkflow',
+            'approvals' => fn ($query) => $query
                 ->where('approver_id', $user->id)
-                ->where('action', 'pending'))
-            ->with([
-                'employee:id,name,employee_number,organizational_unit_id,position_id',
-                'employee.organizationalUnit',
-                'employee.position',
-                'leaveType',
-                'approvalWorkflow',
-                'approvals' => fn ($query) => $query
-                    ->where('approver_id', $user->id)
-                    ->where('action', 'pending')
-                    ->select([
-                        'id',
-                        'leave_application_id',
-                        'approval_workflow_step_id',
-                        'step_order',
-                        'approver_id',
-                        'action',
-                        'remarks',
-                        'acted_at',
-                    ]),
-            ])
-            ->orderByDesc('submitted_at')
-            ->orderByDesc('id')
-            ->paginate(10)
-            ->withQueryString();
+                ->where('action', 'pending')
+                ->select([
+                    'id',
+                    'leave_application_id',
+                    'approval_workflow_step_id',
+                    'step_order',
+                    'approver_id',
+                    'action',
+                    'remarks',
+                    'acted_at',
+                ]),
+        ])
+        ->orderByDesc('submitted_at')
+        ->orderByDesc('id')
+        ->paginate(10)
+        ->withQueryString();
 
-        return Inertia::render('Leave/Approvals/Index', [
-            'applications' => $applications,
-            'approver' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'employee_number' => $user->employee_number,
-            ],
-        ]);
-    }
+    /*
+     * Decision history includes this user's completed decisions,
+     * even if a later approver is still reviewing the application.
+     */
+    $historyQuery = LeaveApproval::query()
+        ->where('approver_id', $user->id)
+        ->whereIn('action', ['approved', 'rejected'])
+        ->whereHas('leaveApplication');
+
+    $approvalHistory = (clone $historyQuery)
+        ->with([
+            'leaveApplication.employee:id,name,employee_number,organizational_unit_id,position_id',
+            'leaveApplication.employee.organizationalUnit',
+            'leaveApplication.employee.position',
+            'leaveApplication.leaveType',
+        ])
+        ->orderByDesc('acted_at')
+        ->orderByDesc('id')
+        ->paginate(10, ['*'], 'history_page')
+        ->withQueryString();
+
+    // Only applications that have reached the final Approved status.
+    $recentApproved = LeaveApplication::query()
+        ->where('status', LeaveApplicationStatus::Approved->value)
+        ->whereHas('approvals', fn ($query) => $query
+            ->where('approver_id', $user->id)
+            ->where('action', 'approved'))
+        ->with([
+            'employee:id,name,employee_number,organizational_unit_id,position_id',
+            'employee.organizationalUnit',
+            'employee.position',
+            'leaveType',
+        ])
+        ->orderByDesc('approved_at')
+        ->orderByDesc('id')
+        ->limit(5)
+        ->get();
+
+    $approvedCount = (clone $historyQuery)
+        ->where('action', 'approved')
+        ->count();
+
+    $rejectedCount = (clone $historyQuery)
+        ->where('action', 'rejected')
+        ->count();
+
+    return Inertia::render('Leave/Approvals/Index', [
+        'applications' => $applications,
+
+        'dashboard' => [
+            'pending_count' => (clone $pendingQuery)->count(),
+            'approved_count' => $approvedCount,
+            'rejected_count' => $rejectedCount,
+            'decisions_count' => $approvedCount + $rejectedCount,
+        ],
+
+        'approvalHistory' => $approvalHistory,
+        'recentApproved' => $recentApproved,
+
+        'approver' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'employee_number' => $user->employee_number,
+        ],
+    ]);
+}
 
     public function show(
         Request $request,

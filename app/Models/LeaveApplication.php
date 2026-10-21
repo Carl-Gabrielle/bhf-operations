@@ -13,7 +13,18 @@ class LeaveApplication extends Model
     use HasFactory;
 
     protected $fillable = [
+        /*
+        |--------------------------------------------------------------------------
+        | Application Identification
+        |--------------------------------------------------------------------------
+        */
         'application_no',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Employee and Leave Information
+        |--------------------------------------------------------------------------
+        */
         'employee_id',
         'leave_type_id',
         'date_filed',
@@ -23,19 +34,50 @@ class LeaveApplication extends Model
         'schedule_type',
         'reason',
         'attachment_path',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Approval Workflow
+        |--------------------------------------------------------------------------
+        */
         'status',
         'approval_workflow_id',
         'current_step',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Employee Confirmation
+        |--------------------------------------------------------------------------
+        */
         'employee_confirmed',
         'employee_confirmed_at',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lifecycle Timestamps
+        |--------------------------------------------------------------------------
+        */
         'submitted_at',
         'approved_at',
         'rejected_at',
         'processed_at',
         'completed_at',
         'cancelled_at',
+
+        /*
+        |--------------------------------------------------------------------------
+        | HR Processing Audit
+        |--------------------------------------------------------------------------
+        */
+        'processing_started_by_user_id',
+        'processing_started_at',
+        'processed_by_user_id',
+        'processing_remarks',
     ];
 
+    /**
+     * Attribute casting.
+     */
     protected function casts(): array
     {
         return [
@@ -57,6 +99,8 @@ class LeaveApplication extends Model
             'processed_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+
+            'processing_started_at' => 'datetime',
         ];
     }
 
@@ -70,7 +114,7 @@ class LeaveApplication extends Model
     {
         return $this->belongsTo(
             User::class,
-            'employee_id'
+            'employee_id',
         );
     }
 
@@ -83,7 +127,7 @@ class LeaveApplication extends Model
     public function leaveType(): BelongsTo
     {
         return $this->belongsTo(
-            LeaveType::class
+            LeaveType::class,
         );
     }
 
@@ -96,20 +140,48 @@ class LeaveApplication extends Model
     public function approvalWorkflow(): BelongsTo
     {
         return $this->belongsTo(
-            ApprovalWorkflow::class
+            ApprovalWorkflow::class,
         );
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Approvals
+    | Approval Workflow Assignments
     |--------------------------------------------------------------------------
     */
 
     public function approvals(): HasMany
     {
         return $this->hasMany(
-            LeaveApproval::class
+            LeaveApproval::class,
         )->orderBy('step_order');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | HR User Who Started Processing
+    |--------------------------------------------------------------------------
+    */
+
+    public function processingStartedBy(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'processing_started_by_user_id',
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | HR User Who Completed Processing
+    |--------------------------------------------------------------------------
+    */
+
+    public function processedBy(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'processed_by_user_id',
+        );
     }
 }

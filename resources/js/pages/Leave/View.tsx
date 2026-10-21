@@ -72,6 +72,10 @@ type LeaveApplication = {
     employee_confirmed_at?: string | null;
     submitted_at?: string | null;
     approved_at?: string | null;
+    processing_started_at?: string | null;
+    processing_remarks?: string | null;
+    processing_started_by?: { id: number; name: string } | null;
+    processed_by?: { id: number; name: string } | null;
     rejected_at?: string | null;
     processed_at?: string | null;
     completed_at?: string | null;
@@ -514,6 +518,107 @@ export default function View({
     const approvals = [...(application.approvals ?? [])].sort(
         (a, b) => a.step_order - b.step_order,
     );
+
+    // Build a readable timeline from persisted application timestamps and approval records.
+    // This is a user-facing workflow history, not an immutable audit log.
+    const historyEvents = [
+        ...(application.date_filed
+            ? [{
+                  key: 'filed',
+                  title: 'Application created',
+                  detail: 'The leave application was recorded in the system.',
+                  actor: application.employee?.name ?? 'Applicant',
+                  date: application.date_filed,
+                  icon: FileText,
+                  tone: 'blue',
+              }]
+            : []),
+        ...(application.submitted_at
+            ? [{
+                  key: 'submitted',
+                  title: 'Application submitted',
+                  detail: 'The application was submitted for approval.',
+                  actor: application.employee?.name ?? 'Applicant',
+                  date: application.submitted_at,
+                  icon: CheckCircle2,
+                  tone: 'blue',
+              }]
+            : []),
+        ...approvals
+            .filter((approval) => Boolean(approval.acted_at) || ['approved', 'rejected', 'returned'].includes(approval.action?.toLowerCase() ?? ''))
+            .map((approval) => ({
+                key: `approval-${approval.id}`,
+                title: `Approval step ${approval.step_order}: ${
+                    approval.action
+                        ? approval.action.charAt(0).toUpperCase() + approval.action.slice(1)
+                        : 'Pending'
+                }`,
+                detail: approval.remarks || `Approval decision recorded for step ${approval.step_order}.`,
+                actor: approval.approver?.name ?? 'Assigned approver',
+                date: approval.acted_at ?? null,
+                icon: approval.action === 'rejected' ? XCircle : approval.action === 'approved' ? CheckCircle2 : Clock3,
+                tone: approval.action === 'rejected' ? 'rose' : approval.action === 'approved' ? 'emerald' : 'amber',
+            })),
+        ...(application.approved_at && !approvals.some((approval) => approval.action === 'approved' && approval.acted_at)
+            ? [{
+                  key: 'approved',
+                  title: 'Application approved',
+                  detail: 'The approval workflow was completed.',
+                  actor: 'Approval workflow',
+                  date: application.approved_at,
+                  icon: CheckCircle2,
+                  tone: 'emerald',
+              }]
+            : []),
+        ...(application.processing_started_at
+            ? [{
+                  key: 'processing',
+                  title: 'HR processing started',
+                  detail: application.processing_remarks || 'HR began processing this approved application.',
+                  actor: application.processing_started_by?.name ?? 'HR processor',
+                  date: application.processing_started_at,
+                  icon: Clock3,
+                  tone: 'indigo',
+              }]
+            : []),
+        ...(application.processed_at || application.completed_at
+            ? [{
+                  key: 'completed',
+                  title: 'HR processing completed',
+                  detail: application.processing_remarks || 'HR marked the application as completed.',
+                  actor: application.processed_by?.name ?? 'HR processor',
+                  date: application.completed_at ?? application.processed_at ?? null,
+                  icon: CheckCircle2,
+                  tone: 'emerald',
+              }]
+            : []),
+        ...(application.rejected_at && !approvals.some((approval) => approval.action === 'rejected' && approval.acted_at)
+            ? [{
+                  key: 'rejected',
+                  title: 'Application rejected',
+                  detail: 'The application was rejected.',
+                  actor: 'Approval workflow',
+                  date: application.rejected_at,
+                  icon: XCircle,
+                  tone: 'rose',
+              }]
+            : []),
+        ...(application.cancelled_at
+            ? [{
+                  key: 'cancelled',
+                  title: 'Application cancelled',
+                  detail: 'The application was cancelled.',
+                  actor: application.employee?.name ?? 'Applicant',
+                  date: application.cancelled_at,
+                  icon: XCircle,
+                  tone: 'slate',
+              }]
+            : []),
+    ].sort((a, b) => {
+        const aTime = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.date ? new Date(b.date).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+    });
     const employee = application.employee;
     const leaveType = application.leave_type;
     const canEdit =
@@ -1269,6 +1374,66 @@ export default function View({
                                                     )}
                                                 </ol>
                                             )}
+                                        </div>
+                                    </section>
+
+                                    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                                        <SectionHeader
+                                            icon={Clock3}
+                                            title="Application history"
+                                            description="A chronological record of submission, approval decisions, and HR processing activity."
+                                        />
+                                        <div className="p-5 sm:p-6">
+                                            {historyEvents.length === 0 ? (
+                                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center">
+                                                    <Clock3 className="mx-auto h-5 w-5 text-slate-400" aria-hidden="true" />
+                                                    <p className="mt-2 text-sm font-semibold text-slate-700">No history available yet</p>
+                                                    <p className="mt-1 text-xs text-slate-500">Workflow activity will appear here as events are recorded.</p>
+                                                </div>
+                                            ) : (
+                                                <ol className="space-y-0">
+                                                    {historyEvents.map((event, index) => {
+                                                        const EventIcon = event.icon;
+                                                        const isLast = index === historyEvents.length - 1;
+                                                        const toneClasses: Record<string, string> = {
+                                                            blue: 'border-blue-200 bg-blue-50 text-blue-700',
+                                                            emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                                                            amber: 'border-amber-200 bg-amber-50 text-amber-700',
+                                                            indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+                                                            rose: 'border-rose-200 bg-rose-50 text-rose-700',
+                                                            slate: 'border-slate-200 bg-slate-100 text-slate-600',
+                                                        };
+
+                                                        return (
+                                                            <li key={event.key} className="relative flex gap-3.5">
+                                                                {!isLast && (
+                                                                    <span aria-hidden="true" className="absolute bottom-0 left-[17px] top-9 w-px bg-slate-200" />
+                                                                )}
+                                                                <span className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${toneClasses[event.tone] ?? toneClasses.slate}`}>
+                                                                    <EventIcon aria-hidden="true" className="h-4 w-4" />
+                                                                </span>
+                                                                <article className={`min-w-0 flex-1 ${isLast ? '' : 'pb-5'}`}>
+                                                                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                                            <div className="min-w-0">
+                                                                                <h3 className="text-sm font-semibold text-slate-800">{event.title}</h3>
+                                                                                <p className="mt-1 text-xs text-slate-500">Recorded by {event.actor}</p>
+                                                                            </div>
+                                                                            <time className="shrink-0 text-xs font-medium text-slate-500">
+                                                                                {formatDateTime(event.date)}
+                                                                            </time>
+                                                                        </div>
+                                                                        <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{event.detail}</p>
+                                                                    </div>
+                                                                </article>
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ol>
+                                            )}
+                                            <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-500">
+                                                This history is assembled from saved application timestamps and approval records. Events that were not recorded by the system cannot be reconstructed retroactively.
+                                            </p>
                                         </div>
                                     </section>
                                 </main>

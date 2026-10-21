@@ -1,7 +1,9 @@
+
 <?php
 
 use App\Http\Controllers\Leave\LeaveApplicationController;
 use App\Http\Controllers\Leave\LeaveApprovalController;
+use App\Http\Controllers\Leave\LeaveProcessingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -16,23 +18,6 @@ use Illuminate\Support\Facades\Route;
 |   force.password.change
 |       ↓
 |   leave prefix and name
-|
-| Application URLs:
-|
-|   GET    /leave/applications
-|   GET    /leave/applications/create
-|   POST   /leave/applications
-|   GET    /leave/applications/{leaveApplication}
-|   GET    /leave/applications/{leaveApplication}/edit
-|   PUT    /leave/applications/{leaveApplication}
-|   GET    /leave/applications/{leaveApplication}/download
-|
-| Approval URLs:
-|
-|   GET    /leave/approvals
-|   GET    /leave/approvals/{leaveApplication}
-|   POST   /leave/approvals/{leaveApplication}/approve
-|   POST   /leave/approvals/{leaveApplication}/reject
 |
 |--------------------------------------------------------------------------
 | Leave Application Route Names
@@ -54,6 +39,15 @@ use Illuminate\Support\Facades\Route;
 | leave.approvals.show
 | leave.approvals.approve
 | leave.approvals.reject
+|
+|--------------------------------------------------------------------------
+| HR Processing Route Names
+|--------------------------------------------------------------------------
+|
+| leave.processing.index
+| leave.processing.show
+| leave.processing.start
+| leave.processing.complete
 |
 */
 
@@ -148,9 +142,7 @@ Route::prefix('applications')
 | Leave Approvals
 |--------------------------------------------------------------------------
 |
-| These routes are separate from employee-facing leave applications.
-|
-| The controller additionally checks:
+| The controller checks:
 |
 |   - The authenticated user has an active account.
 |   - The user has the leave.approve permission.
@@ -167,10 +159,6 @@ Route::prefix('approvals')
         |--------------------------------------------------------------------------
         | Approval Inbox
         |--------------------------------------------------------------------------
-        |
-        | GET /leave/approvals
-        | Route: leave.approvals.index
-        |
         */
 
         Route::get('/', 'index')
@@ -181,10 +169,6 @@ Route::prefix('approvals')
         |--------------------------------------------------------------------------
         | Review Leave Application
         |--------------------------------------------------------------------------
-        |
-        | GET /leave/approvals/{leaveApplication}
-        | Route: leave.approvals.show
-        |
         */
 
         Route::get('/{leaveApplication}', 'show')
@@ -195,10 +179,6 @@ Route::prefix('approvals')
         |--------------------------------------------------------------------------
         | Approve Leave Application
         |--------------------------------------------------------------------------
-        |
-        | POST /leave/approvals/{leaveApplication}/approve
-        | Route: leave.approvals.approve
-        |
         */
 
         Route::post('/{leaveApplication}/approve', 'approve')
@@ -209,13 +189,73 @@ Route::prefix('approvals')
         |--------------------------------------------------------------------------
         | Reject Leave Application
         |--------------------------------------------------------------------------
-        |
-        | POST /leave/approvals/{leaveApplication}/reject
-        | Route: leave.approvals.reject
-        |
         */
 
         Route::post('/{leaveApplication}/reject', 'reject')
             ->middleware('permission:leave.approve')
             ->name('reject');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| HR Leave Processing
+|--------------------------------------------------------------------------
+|
+| Only users with BOTH the hr role and leave.process permission
+| can access these routes.
+|
+|   GET  /leave/processing
+|   GET  /leave/processing/{leaveApplication}
+|   POST /leave/processing/{leaveApplication}/start
+|   POST /leave/processing/{leaveApplication}/complete
+|
+| The controller must also verify that the user's account is active
+| and that the application is at the correct stage of the workflow.
+|
+*/
+
+Route::prefix('processing')
+    ->name('processing.')
+    ->middleware([
+        'role:hr',
+        'permission:leave.process',
+    ])
+    ->controller(LeaveProcessingController::class)
+    ->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | HR Processing Queue
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/', 'index')
+            ->name('index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | View Application for HR Processing
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/{leaveApplication}', 'show')
+            ->name('show');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Start Processing
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/{leaveApplication}/start', 'start')
+            ->name('start');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Complete Processing
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/{leaveApplication}/complete', 'complete')
+            ->name('complete');
     });

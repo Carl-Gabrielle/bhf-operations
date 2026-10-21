@@ -1,6 +1,5 @@
 
 import { Link } from '@inertiajs/react';
-
 import {
     SidebarGroup,
     SidebarGroupLabel,
@@ -17,6 +16,7 @@ export type NavSection =
     | 'organization'
     | 'requests'
     | 'approvals'
+    | 'processing'
     | 'access'
     | 'reports';
 
@@ -29,6 +29,7 @@ export type RBACNavItem = NavItem & {
 
 type NavMainProps = {
     items: RBACNavItem[];
+    userRoles?: string[];
 };
 
 const sectionConfig: { key: NavSection; label: string }[] = [
@@ -36,6 +37,7 @@ const sectionConfig: { key: NavSection; label: string }[] = [
     { key: 'organization', label: 'Organization' },
     { key: 'requests', label: 'Requests' },
     { key: 'approvals', label: 'Approvals' },
+    { key: 'processing', label: 'HR Processing' },
     { key: 'access', label: 'Access & Security' },
     { key: 'reports', label: 'Reports' },
 ];
@@ -72,13 +74,28 @@ export function CountBadge({
     );
 }
 
-export function NavMain({ items }: NavMainProps) {
+export function NavMain({
+    items,
+    userRoles = [],
+}: NavMainProps) {
     const { isCurrentUrl } = useCurrentUrl();
+
+    const isHR = userRoles.includes('hr');
+
+    // Defense in depth for navigation visibility.
+    // Processing is rendered only for the HR role.
+    const visibleItems = items.filter((item) => {
+        if (item.section === 'processing' && !isHR) {
+            return false;
+        }
+
+        return true;
+    });
 
     return (
         <div className="space-y-5 pb-3">
             {sectionConfig.map(({ key, label }) => {
-                const sectionItems = items.filter(
+                const sectionItems = visibleItems.filter(
                     (item) => item.section === key,
                 );
 

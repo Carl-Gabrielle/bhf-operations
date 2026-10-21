@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
+    ClipboardList,
     CalendarDays,
     ChevronRight,
     ClipboardCheck,
@@ -53,6 +54,7 @@ type NavigationCounts = {
     overtimeRequests?: number;
     travelOrders?: number;
     leaveApprovals?: number;
+    leaveProcessing?: number;
     undertimeApprovals?: number;
     overtimeApprovals?: number;
     travelApprovals?: number;
@@ -123,6 +125,14 @@ const mainNavItems: RBACNavItem[] = [
         badgeLabel: 'pending approvals',
     },
     {
+        title: 'Leave Processing',
+        href: '/leave/processing',
+        icon: ClipboardList,
+        permission: 'leave.process',
+        section: 'processing',
+        badgeLabel: 'applications awaiting HR processing',
+    },
+    {
         title: 'Undertime Approvals',
         href: '/undertime/approvals',
         icon: Clock3,
@@ -174,6 +184,7 @@ const sectionLabels: Record<NavSection, string> = {
     organization: 'Organization',
     requests: 'Requests',
     approvals: 'Approvals',
+    processing: 'Processing',
     access: 'Access & Security',
     reports: 'Reports',
 };
@@ -183,6 +194,7 @@ const sectionOrder: NavSection[] = [
     'organization',
     'requests',
     'approvals',
+    'processing',
     'access',
     'reports',
 ];
@@ -239,6 +251,7 @@ function getItemCount(
         'Travel Orders': counts.travelOrders,
         'Leave Approvals': counts.leaveApprovals,
         'Undertime Approvals': counts.undertimeApprovals,
+        'Leave Processing': counts.leaveProcessing,
         'Overtime Approvals': counts.overtimeApprovals,
         'Travel Order Approvals': counts.travelApprovals,
     };
@@ -581,6 +594,12 @@ export function AppSidebar() {
 
     const visibleNavItems: RBACNavItem[] = mainNavItems
         .filter((item) => {
+            // Leave Processing is HR-only, even if another role has
+            // the leave.process permission.
+            if (item.section === 'processing' && !roles.has('hr')) {
+                return false;
+            }
+
             if (!permissions.has(item.permission)) {
                 return false;
             }
@@ -733,7 +752,10 @@ export function AppSidebar() {
                     </SidebarHeader>
 
                     <SidebarContent className="pt-4">
-                        <NavMain items={visibleNavItems} />
+                        <NavMain
+                            items={visibleNavItems}
+                            userRoles={[...roles]}
+                        />
                     </SidebarContent>
 
                     <SidebarFooter className="border-t border-slate-200/80 pt-2">

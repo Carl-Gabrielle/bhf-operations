@@ -2,12 +2,14 @@ import { Link } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowRight,
+    BadgeCheck,
     CalendarDays,
     CheckCircle2,
     Clock3,
     Eye,
     FileText,
     Inbox,
+    TrendingUp,
     UserRound,
     XCircle,
 } from 'lucide-react';
@@ -55,8 +57,54 @@ type PaginatedApplications = {
     links?: PaginationLink[];
 };
 
+type RecentApprovedApplication = {
+    id: number;
+    application_no?: string | null;
+    start_date: string;
+    end_date: string;
+    total_days?: number | string | null;
+    approved_at?: string | null;
+    employee?: Employee | null;
+    leave_type?: {
+        id?: number;
+        name?: string | null;
+        code?: string | null;
+    } | null;
+};
+
+type ApprovalHistoryItem = {
+    id: number;
+    action: 'approved' | 'rejected' | string;
+    remarks?: string | null;
+    acted_at?: string | null;
+    step_order?: number | null;
+    leave_application?: LeaveApplication & {
+        approved_at?: string | null;
+        rejected_at?: string | null;
+    } | null;
+};
+
+type PaginatedApprovalHistory = {
+    data: ApprovalHistoryItem[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from?: number | null;
+    to?: number | null;
+    links?: PaginationLink[];
+};
+
 type Props = {
     applications: PaginatedApplications;
+    dashboard?: {
+        pending_count: number;
+        approved_count: number;
+        rejected_count: number;
+        decisions_count: number;
+    };
+    recentApproved?: RecentApprovedApplication[];
+    approvalHistory?: PaginatedApprovalHistory;
     approver?: {
         id: number;
         name: string;
@@ -163,12 +211,26 @@ function PaginationButton({
     );
 }
 
-export default function Index({ applications }: Props) {
+export default function Index({ applications, dashboard, recentApproved = [], approvalHistory, approver }: Props) {
     const requests = applications?.data ?? [];
     const total = applications?.total ?? requests.length;
     const currentPage = applications?.current_page ?? 1;
     const lastPage = applications?.last_page ?? 1;
     const hasRequests = requests.length > 0;
+    const pendingCount = dashboard?.pending_count ?? total;
+    const approvedCount = dashboard?.approved_count ?? 0;
+    const rejectedCount = dashboard?.rejected_count ?? 0;
+    const decisionsCount = dashboard?.decisions_count ?? approvedCount + rejectedCount;
+    const historyItems = approvalHistory?.data ?? [];
+    const historyTotal = approvalHistory?.total ?? historyItems.length;
+    const historyCurrentPage = approvalHistory?.current_page ?? 1;
+    const historyLastPage = approvalHistory?.last_page ?? 1;
+    const historyPreviousUrl =
+        approvalHistory?.links?.find((link) => /previous|laquo/i.test(link.label))?.url ??
+        (historyCurrentPage > 1 ? `/leave/approvals?history_page=${historyCurrentPage - 1}` : null);
+    const historyNextUrl =
+        approvalHistory?.links?.find((link) => /next|raquo/i.test(link.label))?.url ??
+        (historyCurrentPage < historyLastPage ? `/leave/approvals?history_page=${historyCurrentPage + 1}` : null);
 
     const previousUrl =
         applications?.links?.find((link) => /previous|laquo/i.test(link.label))?.url ??
@@ -210,6 +272,115 @@ export default function Index({ applications }: Props) {
                         </div>
                     </div>
                 </header>
+
+                <section aria-label="Approval overview" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <article className="rounded-2xl border border-amber-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Awaiting your review</p>
+                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{pendingCount}</p>
+                                <p className="mt-1 text-xs text-slate-500">Assigned pending requests</p>
+                            </div>
+                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                                <Clock3 aria-hidden="true" className="h-5 w-5" />
+                            </span>
+                        </div>
+                    </article>
+                    <article className="rounded-2xl border border-emerald-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Approved by you</p>
+                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{approvedCount}</p>
+                                <p className="mt-1 text-xs text-slate-500">Leave requests approved</p>
+                            </div>
+                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                                <BadgeCheck aria-hidden="true" className="h-5 w-5" />
+                            </span>
+                        </div>
+                    </article>
+                    <article className="rounded-2xl border border-rose-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Rejected by you</p>
+                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{rejectedCount}</p>
+                                <p className="mt-1 text-xs text-slate-500">Leave requests rejected</p>
+                            </div>
+                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-700">
+                                <XCircle aria-hidden="true" className="h-5 w-5" />
+                            </span>
+                        </div>
+                    </article>
+                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">Decisions recorded</p>
+                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{decisionsCount}</p>
+                                <p className="mt-1 text-xs text-slate-500">Approved and rejected actions</p>
+                            </div>
+                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf3fb] text-[#205c86]">
+                                <TrendingUp aria-hidden="true" className="h-5 w-5" />
+                            </span>
+                        </div>
+                    </article>
+                </section>
+
+                <section aria-labelledby="recent-approved-heading" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
+                    <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <div>
+                            <h2 id="recent-approved-heading" className="text-base font-semibold text-[#17366b]">Recently approved leave</h2>
+                            <p className="mt-1 text-sm text-slate-500">The latest requests you approved, for quick tracking.</p>
+                        </div>
+                        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+                            <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
+                            {recentApproved.length} recent
+                        </span>
+                    </div>
+                    {recentApproved.length === 0 ? (
+                        <div className="flex items-center gap-3 px-5 py-8">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                <Inbox aria-hidden="true" className="h-5 w-5" />
+                            </span>
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800">No approved requests yet</p>
+                                <p className="mt-1 text-sm text-slate-500">Leave requests you approve will appear here.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {recentApproved.map((application) => (
+                                <div key={application.id} className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-slate-50/70 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                                            <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-[#205c86]">
+                                                {application.application_no ?? `Application #${application.id}`}
+                                            </p>
+                                            <p className="mt-1 text-sm font-medium text-slate-800">{application.employee?.name ?? 'Unknown employee'}</p>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                {application.leave_type?.name ?? 'Leave'}
+                                                {application.total_days != null ? ` · ${application.total_days} ${Number(application.total_days) === 1 ? 'day' : 'days'}` : ''}
+                                                {application.employee?.organizational_unit?.name ? ` · ${application.employee.organizational_unit.name}` : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                        <div className="text-left sm:text-right">
+                                            <p className="text-xs text-slate-500">Leave period</p>
+                                            <p className="mt-1 text-sm font-medium text-slate-800">{formatDate(application.start_date)} – {formatDate(application.end_date)}</p>
+                                            <p className="mt-1 text-xs text-emerald-700">Approved {formatDate(application.approved_at)}</p>
+                                        </div>
+                                        <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800">
+                                            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                                            Approved
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
 
                 <section
                     aria-labelledby="approvals-heading"
@@ -406,6 +577,150 @@ export default function Index({ applications }: Props) {
                         </div>
                     </nav>
                 )}
+
+                <section
+                    aria-labelledby="approval-history-heading"
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                >
+                    <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                        <div>
+                            <h2 id="approval-history-heading" className="text-base font-semibold text-[#17366b]">
+                                My approval history
+                            </h2>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                                Decisions you have recorded, including requests that may still be moving through another approval step.
+                            </p>
+                        </div>
+                        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                            <FileText aria-hidden="true" className="h-3.5 w-3.5" />
+                            {historyTotal} {historyTotal === 1 ? 'decision' : 'decisions'}
+                        </span>
+                    </div>
+
+                    {historyItems.length === 0 ? (
+                        <div className="flex items-center gap-3 px-5 py-8">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                <Inbox aria-hidden="true" className="h-4 w-4" />
+                            </span>
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800">No approval history yet</p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Your approved and rejected decisions will appear here.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-100">
+                            {historyItems.map((item) => {
+                                const application = item.leave_application;
+                                const decision = item.action?.toLowerCase();
+                                const decisionDate = item.acted_at;
+
+                                return (
+                                    <article key={item.id} className="flex flex-col gap-2 px-4 py-3 sm:px-5">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="flex min-w-0 items-start gap-3">
+                                                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                                    decision === 'approved'
+                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                        : decision === 'rejected'
+                                                          ? 'bg-rose-50 text-rose-700'
+                                                          : 'bg-slate-100 text-slate-600'
+                                                }`}>
+                                                    {decision === 'approved' ? (
+                                                        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                                                    ) : (
+                                                        <XCircle aria-hidden="true" className="h-4 w-4" />
+                                                    )}
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <p className="break-words text-sm font-semibold text-[#205c86]">
+                                                        {application?.application_no ?? `Application #${application?.id ?? '—'}`}
+                                                    </p>
+                                                    <p className="mt-0.5 text-sm font-medium text-slate-900">
+                                                        {application?.employee?.name ?? 'Unknown employee'}
+                                                    </p>
+                                                    <p className="mt-0.5 text-xs text-slate-500">
+                                                        {application?.leave_type?.name ?? 'Leave'}
+                                                        {application?.employee?.employee_number
+                                                            ? ` · ${application.employee.employee_number}`
+                                                            : ''}
+                                                        {application?.employee?.organizational_unit?.name
+                                                            ? ` · ${application.employee.organizational_unit.name}`
+                                                            : ''}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                                <StatusBadge status={decision} />
+                                                <span className="text-xs text-slate-500">
+                                                    {formatDate(decisionDate)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-x-4 gap-y-1.5 rounded-lg bg-slate-50 px-3 py-2 sm:grid-cols-3">
+                                            <div>
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Leave period</p>
+                                                <p className="mt-0.5 text-xs text-slate-700">
+                                                    {application
+                                                        ? `${formatDate(application.start_date)} – ${formatDate(application.end_date)}`
+                                                        : 'Dates unavailable'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Application status</p>
+                                                <div className="mt-0.5">
+                                                    <StatusBadge status={application?.status} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Your decision</p>
+                                                <p className="mt-0.5 text-xs font-medium text-slate-800">
+                                                    {decision === 'approved' ? 'Approved at your step' : decision === 'rejected' ? 'Rejected at your step' : 'Decision recorded'}
+                                                    {item.step_order ? ` · Step ${item.step_order}` : ''}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {item.remarks && (
+                                            <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Your remarks</p>
+                                                <p className="mt-0.5 whitespace-pre-wrap text-xs leading-4 text-slate-600">{item.remarks}</p>
+                                            </div>
+                                        )}
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {historyLastPage > 1 && (
+                        <nav
+                            aria-label="Approval history pagination"
+                            className="flex flex-col gap-3 border-t border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+                        >
+                            <p className="text-sm text-slate-600">
+                                Showing <span className="font-semibold text-slate-900">{approvalHistory?.from ?? 0}–{approvalHistory?.to ?? 0}</span>
+                                {' '}of <span className="font-semibold text-slate-900">{historyTotal}</span> decisions
+                            </p>
+                            <div className="flex items-center justify-between gap-2 sm:justify-end">
+                                <PaginationButton href={historyPreviousUrl} disabled={historyCurrentPage <= 1} label="Previous history page">
+                                    <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                                    Previous
+                                </PaginationButton>
+                                <span aria-current="page" className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-[#17366b] px-2.5 text-xs font-semibold text-white">
+                                    {historyCurrentPage}
+                                    <span className="sr-only"> of {historyLastPage}</span>
+                                </span>
+                                <PaginationButton href={historyNextUrl} disabled={historyCurrentPage >= historyLastPage} label="Next history page">
+                                    Next
+                                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                                </PaginationButton>
+                            </div>
+                        </nav>
+                    )}
+                </section>
 
                 <footer className="flex flex-col gap-1 px-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                     <span>BHF Rural Bank</span>

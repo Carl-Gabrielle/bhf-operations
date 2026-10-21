@@ -131,8 +131,13 @@ class LeaveApplicationController extends Controller
             );
 
             if ($attachmentPath === false) {
-                Log::error('Leave attachment upload failed.', ['employee_id' => $user->id]);
-                throw new \RuntimeException('The leave attachment could not be saved.');
+                Log::error('Leave attachment upload failed.', [
+                    'employee_id' => $user->id,
+                ]);
+
+                throw new \RuntimeException(
+                    'The leave attachment could not be saved.',
+                );
             }
         }
 
@@ -149,9 +154,8 @@ class LeaveApplicationController extends Controller
                 ],
             );
         } catch (ValidationException $exception) {
-            // Expected configuration/validation problems are recorded without
-            // dumping sensitive request data into the log. Laravel will show
-            // the validation errors to the user as usual.
+            // Record expected validation/configuration problems without
+            // logging sensitive request data.
             Log::warning('Leave application submission rejected.', [
                 'employee_id' => $user->id,
                 'errors' => $exception->errors(),
@@ -225,6 +229,11 @@ class LeaveApplicationController extends Controller
             'approvalWorkflow.steps.approver',
             'approvals.approver.position',
             'approvals.workflowStep',
+
+            // Added for the employee-facing audit timeline:
+            // who started HR processing and who completed it.
+            'processingStartedBy:id,name',
+            'processedBy:id,name',
         ]);
 
         return Inertia::render('Leave/View', [
@@ -268,9 +277,12 @@ class LeaveApplicationController extends Controller
             },
             basename($path),
             [
-                'Content-Type' => $disk->mimeType($path) ?: 'application/octet-stream',
-                'Content-Disposition' => 'attachment; filename="' . basename($path) . '"',
-                'Cache-Control' => 'private, no-store, no-cache, must-revalidate',
+                'Content-Type' => $disk->mimeType($path)
+                    ?: 'application/octet-stream',
+                'Content-Disposition' =>
+                    'attachment; filename="' . basename($path) . '"',
+                'Cache-Control' =>
+                    'private, no-store, no-cache, must-revalidate',
                 'Pragma' => 'no-cache',
                 'Expires' => '0',
                 'X-Content-Type-Options' => 'nosniff',
