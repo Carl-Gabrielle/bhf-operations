@@ -227,4 +227,58 @@ class User extends Authenticatable
             'target_user_id'
         );
     }
+    /*
+|--------------------------------------------------------------------------
+| Undertime Management
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Undertime applications submitted by this employee.
+ */
+public function undertimeApplications(): HasMany
+{
+    return $this->hasMany(
+        UndertimeApplication::class,
+        'employee_id',
+    );
+}
+
+/**
+ * Undertime approvals assigned to this user.
+ */
+public function undertimeApprovals(): HasMany
+{
+    return $this->hasMany(
+        UndertimeApproval::class,
+        'approver_id',
+    );
+}
+/*
+|--------------------------------------------------------------------------
+| Overtime Management
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * Overtime applications submitted by this employee.
+ */
+public function overtimeApplications(): HasMany
+{
+    return $this->hasMany(
+        OvertimeApplication::class,
+        'employee_id',
+    );
+}
+
+/**
+ * Overtime approvals assigned to this user.
+ */
+public function overtimeApprovals(): HasMany
+{
+    return $this->hasMany(
+        OvertimeApproval::class,
+        'approver_id',
+    );
+}
 }

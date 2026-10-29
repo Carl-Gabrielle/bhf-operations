@@ -94,7 +94,7 @@ const mainNavItems: RBACNavItem[] = [
     },
     {
         title: 'Undertime',
-        href: '/undertime',
+        href: '/undertime/applications',
         icon: Clock3,
         permission: 'undertime.view',
         section: 'requests',

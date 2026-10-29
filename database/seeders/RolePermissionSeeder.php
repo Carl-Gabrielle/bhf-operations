@@ -47,6 +47,7 @@ class RolePermissionSeeder extends Seeder
             'overtime.view',
             'overtime.create',
             'overtime.edit',
+            'overtime.process',
             'overtime.delete',
             'overtime.approve',
 
@@ -54,6 +55,7 @@ class RolePermissionSeeder extends Seeder
             'undertime.view',
             'undertime.create',
             'undertime.edit',
+            'undertime.process',
             'undertime.delete',
             'undertime.approve',
 
@@ -73,6 +75,7 @@ class RolePermissionSeeder extends Seeder
             'users.edit',
             'users.delete',
             'users.manage-roles',
+            'users.reset-password',
         ];
 
         foreach ($permissions as $permission) {

@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import {
     Check,
@@ -32,17 +33,20 @@ export default function UserResetPasswordModal({
     const [temporaryPassword, setTemporaryPassword] = useState('');
     const [copied, setCopied] = useState(false);
     const [visible, setVisible] = useState(false);
+    const [resetSucceeded, setResetSucceeded] = useState(false);
 
     if (!open) {
         return null;
     }
 
     const resetPassword = () => {
+        // Generate one password and send that exact password to Laravel.
         const password = generateTemporaryPassword();
 
-        setTemporaryPassword(password);
+        setTemporaryPassword('');
         setCopied(false);
         setVisible(false);
+        setResetSucceeded(false);
 
         form.transform((data) => ({
             ...data,
@@ -50,12 +54,23 @@ export default function UserResetPasswordModal({
             password_confirmation: password,
         }));
 
-        form.put(`/admin/users/${userId}`, {
+        form.post(`/admin/users/${userId}/reset-password`, {
             preserveScroll: true,
+
+            onSuccess: () => {
+                // Display the password only after a successful response.
+                setTemporaryPassword(password);
+                setResetSucceeded(true);
+            },
+
             onError: () => {
                 setTemporaryPassword('');
+                setCopied(false);
+                setResetSucceeded(false);
             },
+
             onFinish: () => {
+                // Do not retain the temporary password in the shared form.
                 form.transform((data) => ({
                     ...data,
                     password: '',
@@ -73,8 +88,12 @@ export default function UserResetPasswordModal({
         try {
             await navigator.clipboard.writeText(temporaryPassword);
             setCopied(true);
-            window.setTimeout(() => setCopied(false), 1800);
+
+            window.setTimeout(() => {
+                setCopied(false);
+            }, 1800);
         } catch {
+            // Clipboard access may require HTTPS or browser permission.
             setCopied(false);
         }
     };
@@ -87,12 +106,19 @@ export default function UserResetPasswordModal({
         setTemporaryPassword('');
         setCopied(false);
         setVisible(false);
+        setResetSucceeded(false);
         onClose();
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-[2px]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-password-title"
+        >
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.20)]">
+                {/* Header */}
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
                     <div className="flex items-start gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 ring-1 ring-amber-100">
@@ -100,9 +126,13 @@ export default function UserResetPasswordModal({
                         </div>
 
                         <div>
-                            <h2 className="text-sm font-semibold text-slate-900">
+                            <h2
+                                id="reset-password-title"
+                                className="text-sm font-semibold text-slate-900"
+                            >
                                 Reset Password
                             </h2>
+
                             <p className="mt-1 text-[11px] leading-5 text-slate-500">
                                 Reset the password for{' '}
                                 <span className="font-semibold text-slate-700">
@@ -117,27 +147,32 @@ export default function UserResetPasswordModal({
                         type="button"
                         onClick={close}
                         disabled={form.processing}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
                         aria-label="Close reset password dialog"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                <div className="p-5">
-                    {!temporaryPassword ? (
-                        <div className="space-y-4">
+                {/* Body */}
+                <div className="space-y-4 p-5">
+                    {!resetSucceeded ? (
+                        <>
                             <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4">
                                 <div className="flex gap-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-amber-700 ring-1 ring-amber-100">
                                         <ShieldCheck className="h-4 w-4" />
                                     </div>
+
                                     <div>
                                         <p className="text-xs font-semibold text-amber-900">
                                             Temporary password
                                         </p>
+
                                         <p className="mt-1 text-[11px] leading-5 text-amber-800/80">
-                                            A secure temporary password will be generated and assigned to this account.
+                                            A new temporary password will be
+                                            generated and assigned to this
+                                            employee.
                                         </p>
                                     </div>
                                 </div>
@@ -145,45 +180,62 @@ export default function UserResetPasswordModal({
 
                             <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
                                 <p className="text-[11px] leading-5 text-slate-500">
-                                    The employee should change the temporary password after signing in.
+                                    The employee will be required to change
+                                    this password after signing in.
                                 </p>
                             </div>
-                        </div>
+                        </>
                     ) : (
-                        <div className="space-y-4">
+                        <>
                             <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
                                 <div className="flex gap-3">
                                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-emerald-700 ring-1 ring-emerald-100">
                                         <CheckCircle2 className="h-4 w-4" />
                                     </div>
+
                                     <div>
                                         <p className="text-xs font-semibold text-emerald-900">
                                             Password reset successfully
                                         </p>
+
                                         <p className="mt-1 text-[11px] leading-5 text-emerald-800/80">
-                                            Provide the temporary password to the employee through your approved secure process.
+                                            Copy the password below and provide
+                                            it to the employee securely.
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
+                            {/* Temporary password and copy button */}
                             <div>
-                                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                                <label
+                                    htmlFor="temporary-password"
+                                    className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500"
+                                >
                                     Temporary Password
                                 </label>
 
                                 <div className="flex gap-2">
                                     <div className="flex min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-slate-50 px-3">
                                         <input
+                                            id="temporary-password"
                                             type={visible ? 'text' : 'password'}
-                                            readOnly
                                             value={temporaryPassword}
+                                            readOnly
+                                            autoComplete="off"
                                             className="min-w-0 flex-1 bg-transparent py-2.5 font-mono text-sm font-semibold tracking-wider text-slate-800 outline-none"
                                         />
 
                                         <button
                                             type="button"
-                                            onClick={() => setVisible((value) => !value)}
+                                            onClick={() =>
+                                                setVisible((value) => !value)
+                                            }
+                                            aria-label={
+                                                visible
+                                                    ? 'Hide temporary password'
+                                                    : 'Show temporary password'
+                                            }
                                             className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-white hover:text-slate-700"
                                         >
                                             {visible ? (
@@ -214,15 +266,18 @@ export default function UserResetPasswordModal({
                                 </div>
 
                                 <p className="mt-2 text-[10px] leading-4 text-slate-400">
-                                    This password is displayed only for this reset operation. Store or communicate it according to your organization's security procedures.
+                                    This password is shown for this reset
+                                    operation only. Share it through your
+                                    organization&apos;s approved secure channel.
                                 </p>
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
 
+                {/* Footer */}
                 <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-4">
-                    {!temporaryPassword ? (
+                    {!resetSucceeded ? (
                         <>
                             <button
                                 type="button"
@@ -256,7 +311,7 @@ export default function UserResetPasswordModal({
                         <button
                             type="button"
                             onClick={close}
-                            className="h-9 rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#123052]"
+                            className="h-9 rounded-lg bg-[#173B67] px-4 text-xs font-semibold text-white transition hover:bg-[#123052]"
                         >
                             Done
                         </button>

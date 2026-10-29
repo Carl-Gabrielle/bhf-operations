@@ -111,7 +111,11 @@ Route::middleware('auth')->group(function () {
                 require __DIR__ . '/leave.php';
             });
 
-
+Route::prefix('undertime')
+    ->name('undertime.')
+    ->group(function () {
+        require __DIR__ . '/undertime.php';
+    });
         /*
         |--------------------------------------------------------------------------
         | Future Application Modules

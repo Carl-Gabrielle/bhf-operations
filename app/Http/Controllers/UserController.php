@@ -692,51 +692,39 @@ class UserController extends Controller
     | RESET PASSWORD
     |--------------------------------------------------------------------------
     */
-    public function resetPassword(User $user)
-    {
-        $temporaryPassword = Str::password(
-            length: 12,
-            letters: true,
-            numbers: true,
-            symbols: true,
-        );
-        $user->update([
-            'password' =>
-                Hash::make(
-                    $temporaryPassword
-                ),
-            'password_changed_at' =>
-                now(),
-            'must_change_password' =>
-                true,
-        ]);
-        AuditLogger::log(
-            action: 'password_reset',
-            targetUser: $user,
-            description:
-                'Password reset by ' .
-                (
-                    auth()->user()?->name ??
-                    auth()->user()?->username ??
-                    'System administrator'
-                ),
-            changes: [
-                'password' => [
-                    'changed' => true,
-                ],
-                'must_change_password' => [
-                    'old' => false,
-                    'new' => true,
-                ],
+ public function resetPassword(Request $request, User $user)
+{
+    $validated = $request->validate([
+        'password' => ['required', 'string', 'min:8', 'confirmed'],
+    ]);
+
+    $oldMustChangePassword = (bool) $user->must_change_password;
+
+    DB::transaction(function () use ($user, $validated) {
+        $user->password = Hash::make($validated['password']);
+        $user->password_changed_at = now();
+        $user->must_change_password = true;
+        $user->save();
+    });
+
+    AuditLogger::log(
+        action: 'password_reset',
+        targetUser: $user,
+        description: 'Password reset by ' .
+            (auth()->user()?->name ??
+                auth()->user()?->username ??
+                'System administrator'),
+        changes: [
+            'password' => ['changed' => true],
+            'must_change_password' => [
+                'old' => $oldMustChangePassword,
+                'new' => true,
             ],
-        );
-        return back()->with([
-            'success' =>
-                'Password reset successfully.',
-            'temporaryPassword' =>
-                $temporaryPassword,
-        ]);
-    }
+        ],
+    );
+
+    return back()->with('success', 'Password reset successfully.');
+}
     /*
     |--------------------------------------------------------------------------
     | UPDATE USER
