@@ -1,15 +1,15 @@
-import { Link } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import type { ReactNode } from 'react';
 import {
     ArrowLeft,
     ArrowRight,
-    BadgeCheck,
     CalendarDays,
     CheckCircle2,
     Clock3,
     Eye,
     FileText,
+    History,
     Inbox,
-    TrendingUp,
     UserRound,
     XCircle,
 } from 'lucide-react';
@@ -20,6 +20,12 @@ type Employee = {
     employee_number?: string | null;
     organizational_unit?: { name?: string | null } | null;
     position?: { name?: string | null } | null;
+};
+
+type LeaveType = {
+    id?: number;
+    name?: string | null;
+    code?: string | null;
 };
 
 type LeaveApplication = {
@@ -33,11 +39,7 @@ type LeaveApplication = {
     reason?: string | null;
     remarks?: string | null;
     employee?: Employee | null;
-    leave_type?: {
-        id?: number;
-        name?: string | null;
-        code?: string | null;
-    } | null;
+    leave_type?: LeaveType | null;
 };
 
 type PaginationLink = {
@@ -46,8 +48,8 @@ type PaginationLink = {
     active: boolean;
 };
 
-type PaginatedApplications = {
-    data: LeaveApplication[];
+type Paginated<T> = {
+    data: T[];
     current_page: number;
     last_page: number;
     per_page: number;
@@ -65,38 +67,23 @@ type RecentApprovedApplication = {
     total_days?: number | string | null;
     approved_at?: string | null;
     employee?: Employee | null;
-    leave_type?: {
-        id?: number;
-        name?: string | null;
-        code?: string | null;
-    } | null;
+    leave_type?: LeaveType | null;
 };
 
 type ApprovalHistoryItem = {
     id: number;
-    action: 'approved' | 'rejected' | string;
+    action: string;
     remarks?: string | null;
     acted_at?: string | null;
     step_order?: number | null;
-    leave_application?: LeaveApplication & {
+    leave_application?: (LeaveApplication & {
         approved_at?: string | null;
         rejected_at?: string | null;
-    } | null;
-};
-
-type PaginatedApprovalHistory = {
-    data: ApprovalHistoryItem[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-    from?: number | null;
-    to?: number | null;
-    links?: PaginationLink[];
+    }) | null;
 };
 
 type Props = {
-    applications: PaginatedApplications;
+    applications: Paginated<LeaveApplication>;
     dashboard?: {
         pending_count: number;
         approved_count: number;
@@ -104,7 +91,7 @@ type Props = {
         decisions_count: number;
     };
     recentApproved?: RecentApprovedApplication[];
-    approvalHistory?: PaginatedApprovalHistory;
+    approvalHistory?: Paginated<ApprovalHistoryItem>;
     approver?: {
         id: number;
         name: string;
@@ -130,107 +117,228 @@ function formatDate(value?: string | null): string {
     }).format(date);
 }
 
-function StatusBadge({ status }: { status?: string | null }) {
-    const key = (status ?? '').trim().toLowerCase();
-    const config: Record<string, { label: string; className: string; icon: typeof Clock3 }> = {
-        pending_approval: {
-            label: 'Pending approval',
-            className: 'border-amber-200 bg-amber-50 text-amber-800',
-            icon: Clock3,
-        },
-        submitted: {
-            label: 'Submitted',
-            className: 'border-blue-200 bg-blue-50 text-blue-800',
-            icon: FileText,
-        },
-        processing: {
-            label: 'Processing',
-            className: 'border-blue-200 bg-blue-50 text-blue-800',
-            icon: Clock3,
-        },
-        approved: {
-            label: 'Approved',
-            className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-            icon: CheckCircle2,
-        },
-        rejected: {
-            label: 'Rejected',
-            className: 'border-rose-200 bg-rose-50 text-rose-800',
-            icon: XCircle,
-        },
-    };
+function formatStatus(status?: string | null): string {
+    if (!status) return 'Unavailable';
 
-    const selected = config[key] ?? {
-        label: key
-            ? key.replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-            : 'Status unavailable',
-        className: 'border-slate-200 bg-slate-100 text-slate-600',
-        icon: FileText,
-    };
-    const Icon = selected.icon;
+    return status
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function StatusBadge({ status }: { status?: string | null }) {
+    const key = (status ?? '').toLowerCase();
+    const isPending = ['pending', 'pending_approval', 'submitted'].includes(key);
+    const isApproved = key === 'approved';
+    const isRejected = key === 'rejected';
+    const isProcessing = key === 'processing';
+
+    const className = isPending
+        ? 'border-amber-200 bg-amber-50 text-amber-800'
+        : isApproved
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : isRejected
+            ? 'border-rose-200 bg-rose-50 text-rose-800'
+            : isProcessing
+              ? 'border-blue-200 bg-blue-50 text-blue-800'
+              : 'border-slate-200 bg-slate-50 text-slate-600';
+
+    const Icon = isPending
+        ? Clock3
+        : isApproved
+          ? CheckCircle2
+          : isRejected
+            ? XCircle
+            : isProcessing
+              ? Clock3
+              : FileText;
 
     return (
-        <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${selected.className}`}>
-            <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-            {selected.label}
+        <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+            <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+            {formatStatus(status)}
         </span>
     );
 }
 
-function PaginationButton({
-    href,
-    children,
-    disabled,
+function MetricCard({
     label,
+    value,
+    description,
+    icon: Icon,
+    tone,
 }: {
-    href: string | null;
-    children: React.ReactNode;
-    disabled: boolean;
     label: string;
+    value: number;
+    description: string;
+    icon: typeof Clock3;
+    tone: 'amber' | 'green' | 'rose' | 'slate';
 }) {
-    const base =
-        'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2';
-
-    if (disabled || !href) {
-        return (
-            <span aria-disabled="true" className={`${base} cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300`}>
-                {children}
-            </span>
-        );
-    }
+    const tones = {
+        amber: 'bg-amber-50 text-amber-700',
+        green: 'bg-emerald-50 text-emerald-700',
+        rose: 'bg-rose-50 text-rose-700',
+        slate: 'bg-slate-100 text-slate-600',
+    };
 
     return (
-        <Link
-            href={href}
-            preserveScroll
-            aria-label={label}
-            className={`${base} border-slate-200 bg-white text-slate-700 hover:border-[#b7cfe2] hover:bg-[#f3f8fc] hover:text-[#205c86]`}
-        >
-            {children}
-        </Link>
+        <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/30 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-sm font-medium text-slate-500">{label}</p>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 tabular-nums">
+                        {value.toLocaleString('en-PH')}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">{description}</p>
+                </div>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${tones[tone]}`}>
+                    <Icon className="h-4 w-4" />
+                </span>
+            </div>
+        </article>
     );
 }
 
-export default function Index({ applications, dashboard, recentApproved = [], approvalHistory, approver }: Props) {
+function SectionHeading({
+    title,
+    description,
+    action,
+}: {
+    title: string;
+    description: string;
+    action?: ReactNode;
+}) {
+    return (
+        <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+                <p className="mt-1 text-xs text-slate-500">{description}</p>
+            </div>
+            {action}
+        </div>
+    );
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+    return (
+        <div className="flex flex-col items-center px-6 py-12 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                <Inbox className="h-5 w-5" />
+            </span>
+            <h3 className="mt-3 text-sm font-semibold text-slate-800">{title}</h3>
+            <p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">{description}</p>
+        </div>
+    );
+}
+
+function Pagination({
+    page,
+    lastPage,
+    from,
+    to,
+    total,
+    previous,
+    next,
+    label,
+}: {
+    page: number;
+    lastPage: number;
+    from?: number | null;
+    to?: number | null;
+    total: number;
+    previous: string | null;
+    next: string | null;
+    label: string;
+}) {
+    if (lastPage <= 1) return null;
+
+    const buttonClass =
+        'inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+
+    return (
+        <nav
+            aria-label={label}
+            className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <p className="text-xs text-slate-500">
+                Showing <span className="font-semibold text-slate-700">{from ?? 0}–{to ?? 0}</span> of{' '}
+                <span className="font-semibold text-slate-700">{total}</span>
+            </p>
+
+            <div className="flex items-center gap-2">
+                {previous ? (
+                    <Link href={previous} preserveScroll className={buttonClass}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Previous
+                    </Link>
+                ) : (
+                    <span className={`${buttonClass} cursor-not-allowed opacity-40`}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Previous
+                    </span>
+                )}
+
+                <span className="px-2 text-xs font-medium tabular-nums text-slate-500">
+                    {page} / {lastPage}
+                </span>
+
+                {next ? (
+                    <Link href={next} preserveScroll className={buttonClass}>
+                        Next
+                        <ArrowRight className="h-4 w-4" />
+                    </Link>
+                ) : (
+                    <span className={`${buttonClass} cursor-not-allowed opacity-40`}>
+                        Next
+                        <ArrowRight className="h-4 w-4" />
+                    </span>
+                )}
+            </div>
+        </nav>
+    );
+}
+
+function EmployeeCell({ employee }: { employee?: Employee | null }) {
+    return (
+        <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <UserRound className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-800">
+                    {employee?.name ?? 'Unknown employee'}
+                </p>
+                <p className="truncate text-xs text-slate-500">
+                    {employee?.employee_number ?? 'No employee number'}
+                    {employee?.organizational_unit?.name
+                        ? ` · ${employee.organizational_unit.name}`
+                        : ''}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+export default function Index({
+    applications,
+    dashboard,
+    approvalHistory,
+    approver,
+}: Props) {
     const requests = applications?.data ?? [];
+    const historyItems = approvalHistory?.data ?? [];
+
     const total = applications?.total ?? requests.length;
     const currentPage = applications?.current_page ?? 1;
     const lastPage = applications?.last_page ?? 1;
-    const hasRequests = requests.length > 0;
+
+    const historyTotal = approvalHistory?.total ?? historyItems.length;
+    const historyCurrentPage = approvalHistory?.current_page ?? 1;
+    const historyLastPage = approvalHistory?.last_page ?? 1;
+
     const pendingCount = dashboard?.pending_count ?? total;
     const approvedCount = dashboard?.approved_count ?? 0;
     const rejectedCount = dashboard?.rejected_count ?? 0;
     const decisionsCount = dashboard?.decisions_count ?? approvedCount + rejectedCount;
-    const historyItems = approvalHistory?.data ?? [];
-    const historyTotal = approvalHistory?.total ?? historyItems.length;
-    const historyCurrentPage = approvalHistory?.current_page ?? 1;
-    const historyLastPage = approvalHistory?.last_page ?? 1;
-    const historyPreviousUrl =
-        approvalHistory?.links?.find((link) => /previous|laquo/i.test(link.label))?.url ??
-        (historyCurrentPage > 1 ? `/leave/approvals?history_page=${historyCurrentPage - 1}` : null);
-    const historyNextUrl =
-        approvalHistory?.links?.find((link) => /next|raquo/i.test(link.label))?.url ??
-        (historyCurrentPage < historyLastPage ? `/leave/approvals?history_page=${historyCurrentPage + 1}` : null);
 
     const previousUrl =
         applications?.links?.find((link) => /previous|laquo/i.test(link.label))?.url ??
@@ -239,408 +347,340 @@ export default function Index({ applications, dashboard, recentApproved = [], ap
         applications?.links?.find((link) => /next|raquo/i.test(link.label))?.url ??
         (currentPage < lastPage ? `/leave/approvals?page=${currentPage + 1}` : null);
 
+    const historyPreviousUrl =
+        approvalHistory?.links?.find((link) => /previous|laquo/i.test(link.label))?.url ??
+        (historyCurrentPage > 1
+            ? `/leave/approvals?history_page=${historyCurrentPage - 1}`
+            : null);
+    const historyNextUrl =
+        approvalHistory?.links?.find((link) => /next|raquo/i.test(link.label))?.url ??
+        (historyCurrentPage < historyLastPage
+            ? `/leave/approvals?history_page=${historyCurrentPage + 1}`
+            : null);
+
+    const metrics = [
+        {
+            label: 'Pending review',
+            value: pendingCount,
+            description: 'Applications awaiting your action',
+            icon: Clock3,
+            tone: 'amber' as const,
+        },
+        {
+            label: 'Approved',
+            value: approvedCount,
+            description: 'Approved at your workflow step',
+            icon: CheckCircle2,
+            tone: 'green' as const,
+        },
+        {
+            label: 'Rejected',
+            value: rejectedCount,
+            description: 'Rejected at your workflow step',
+            icon: XCircle,
+            tone: 'rose' as const,
+        },
+        {
+            label: 'Total decisions',
+            value: decisionsCount,
+            description: 'Approved and rejected actions',
+            icon: History,
+            tone: 'slate' as const,
+        },
+    ];
+
     return (
-        <div className="min-h-full bg-[#f4f7fb] text-slate-900">
-            <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-                <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)] sm:p-7">
-                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex min-w-0 items-start gap-4">
-                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#17366b] text-xs font-extrabold tracking-wide text-white shadow-sm">
-                                BHF
-                            </span>
-                            <div className="min-w-0">
-                                <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#4389bc]">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#4389bc]" />
-                                    Approval workspace
-                                </div>
-                                <h1 className="text-2xl font-semibold tracking-tight text-[#17366b] sm:text-3xl">
-                                    Leave approvals
-                                </h1>
-                                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                                    Review employee leave requests assigned to you and record your decision.
+        <>
+            <Head title="Leave Approvals" />
+
+            <main className="min-h-full bg-slate-50/70 text-slate-900">
+                <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+                    <header className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">
+                                BHF Operations
+                            </p>
+                            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                                Leave approvals
+                            </h1>
+                            <p className="mt-1.5 max-w-2xl text-sm text-slate-500">
+                                Review assigned leave applications and monitor your approval activity.
+                            </p>
+                        </div>
+
+                        {approver && (
+                            <div className="text-left sm:text-right">
+                                <p className="text-xs text-slate-500">Signed in as</p>
+                                <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                                    {approver.name}
+                                </p>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                    {approver.employee_number ?? 'Authorized approver'}
                                 </p>
                             </div>
-                        </div>
-                        <div className="flex w-full items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:w-auto">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-amber-700 ring-1 ring-amber-200">
-                                <Clock3 aria-hidden="true" className="h-5 w-5" />
-                            </span>
-                            <div>
-                                <p className="text-xs font-medium text-amber-800">Awaiting your review</p>
-                                <p className="mt-0.5 text-xl font-semibold leading-6 text-amber-900">{total}</p>
-                            </div>
-                        </div>
-                    </div>
-                </header>
+                        )}
+                    </header>
 
-                <section aria-label="Approval overview" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <article className="rounded-2xl border border-amber-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500">Awaiting your review</p>
-                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{pendingCount}</p>
-                                <p className="mt-1 text-xs text-slate-500">Assigned pending requests</p>
-                            </div>
-                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-                                <Clock3 aria-hidden="true" className="h-5 w-5" />
-                            </span>
-                        </div>
-                    </article>
-                    <article className="rounded-2xl border border-emerald-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500">Approved by you</p>
-                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{approvedCount}</p>
-                                <p className="mt-1 text-xs text-slate-500">Leave requests approved</p>
-                            </div>
-                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                                <BadgeCheck aria-hidden="true" className="h-5 w-5" />
-                            </span>
-                        </div>
-                    </article>
-                    <article className="rounded-2xl border border-rose-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500">Rejected by you</p>
-                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{rejectedCount}</p>
-                                <p className="mt-1 text-xs text-slate-500">Leave requests rejected</p>
-                            </div>
-                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-700">
-                                <XCircle aria-hidden="true" className="h-5 w-5" />
-                            </span>
-                        </div>
-                    </article>
-                    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500">Decisions recorded</p>
-                                <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{decisionsCount}</p>
-                                <p className="mt-1 text-xs text-slate-500">Approved and rejected actions</p>
-                            </div>
-                            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf3fb] text-[#205c86]">
-                                <TrendingUp aria-hidden="true" className="h-5 w-5" />
-                            </span>
-                        </div>
-                    </article>
-                </section>
+                    <section aria-label="Leave approval summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        {metrics.map((metric) => (
+                            <MetricCard key={metric.label} {...metric} />
+                        ))}
+                    </section>
 
-                <section aria-labelledby="recent-approved-heading" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]">
-                    <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                        <div>
-                            <h2 id="recent-approved-heading" className="text-base font-semibold text-[#17366b]">Recently approved leave</h2>
-                            <p className="mt-1 text-sm text-slate-500">The latest requests you approved, for quick tracking.</p>
-                        </div>
-                        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
-                            <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
-                            {recentApproved.length} recent
-                        </span>
-                    </div>
-                    {recentApproved.length === 0 ? (
-                        <div className="flex items-center gap-3 px-5 py-8">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                                <Inbox aria-hidden="true" className="h-5 w-5" />
-                            </span>
-                            <div>
-                                <p className="text-sm font-semibold text-slate-800">No approved requests yet</p>
-                                <p className="mt-1 text-sm text-slate-500">Leave requests you approve will appear here.</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100">
-                            {recentApproved.map((application) => (
-                                <div key={application.id} className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-slate-50/70 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                                    <div className="flex min-w-0 items-start gap-3">
-                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                                            <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
-                                        </span>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold text-[#205c86]">
-                                                {application.application_no ?? `Application #${application.id}`}
-                                            </p>
-                                            <p className="mt-1 text-sm font-medium text-slate-800">{application.employee?.name ?? 'Unknown employee'}</p>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                {application.leave_type?.name ?? 'Leave'}
-                                                {application.total_days != null ? ` · ${application.total_days} ${Number(application.total_days) === 1 ? 'day' : 'days'}` : ''}
-                                                {application.employee?.organizational_unit?.name ? ` · ${application.employee.organizational_unit.name}` : ''}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-3 sm:justify-end">
-                                        <div className="text-left sm:text-right">
-                                            <p className="text-xs text-slate-500">Leave period</p>
-                                            <p className="mt-1 text-sm font-medium text-slate-800">{formatDate(application.start_date)} – {formatDate(application.end_date)}</p>
-                                            <p className="mt-1 text-xs text-emerald-700">Approved {formatDate(application.approved_at)}</p>
-                                        </div>
-                                        <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800">
-                                            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-                                            Approved
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
+                    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+                        <SectionHeading
+                            title="Applications awaiting review"
+                            description="Leave applications currently assigned to your approval step."
+                            action={
+                                <span className="w-fit rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                                    {total.toLocaleString('en-PH')} records
+                                </span>
+                            }
+                        />
 
-                <section
-                    aria-labelledby="approvals-heading"
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]"
-                >
-                    <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
-                        <div>
-                            <h2 id="approvals-heading" className="text-base font-semibold text-[#17366b]">
-                                Requests for review
-                            </h2>
-                            <p className="mt-1 text-sm text-slate-500">
-                                Open a request to review its details and take action.
-                            </p>
-                        </div>
-                        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                            <FileText aria-hidden="true" className="h-3.5 w-3.5" />
-                            {total} {total === 1 ? 'request' : 'requests'}
-                        </span>
-                    </div>
+                        {requests.length === 0 ? (
+                            <EmptyState
+                                title="No applications to review"
+                                description="There are no leave applications currently assigned to you. New requests will appear here when they reach your approval step."
+                            />
+                        ) : (
+                            <>
+                                <div className="hidden overflow-x-auto md:block">
+                                    <table className="w-full min-w-[850px] text-left">
+                                        <thead className="bg-slate-50">
+                                            <tr className="border-y border-slate-100">
+                                                {[
+                                                    'Employee',
+                                                    'Leave type',
+                                                    'Leave period',
+                                                    'Duration',
+                                                    'Status',
+                                                    '',
+                                                ].map((heading, index) => (
+                                                    <th
+                                                        key={`${heading}-${index}`}
+                                                        scope="col"
+                                                        className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                                                    >
+                                                        {heading}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
 
-                    {!hasRequests ? (
-                        <div className="flex flex-col items-center px-5 py-14 text-center sm:py-20">
-                            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eaf3fb] text-[#4389bc]">
-                                <Inbox aria-hidden="true" className="h-7 w-7" />
-                            </span>
-                            <h3 className="mt-5 text-base font-semibold text-[#17366b]">
-                                No pending leave requests
-                            </h3>
-                            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                                There are no applications currently assigned to you for review. New requests will appear here when they reach your approval step.
-                            </p>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="hidden overflow-x-auto md:block">
-                                <table className="w-full min-w-[850px] border-collapse text-left">
-                                    <thead className="bg-[#f8fafc]">
-                                        <tr className="border-b border-slate-200">
-                                            <th scope="col" className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Employee</th>
-                                            <th scope="col" className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Leave type</th>
-                                            <th scope="col" className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Leave period</th>
-                                            <th scope="col" className="px-4 py-3.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Status</th>
-                                            <th scope="col" className="px-6 py-3.5 text-right text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {requests.map((application) => {
-                                            const employee = application.employee;
-                                            const reviewUrl = `/leave/approvals/${application.id}`;
+                                        <tbody className="divide-y divide-slate-100">
+                                            {requests.map((application) => (
+                                                <tr
+                                                    key={application.id}
+                                                    className="transition-colors hover:bg-slate-50/70"
+                                                >
+                                                    <td className="px-5 py-4">
+                                                        <EmployeeCell employee={application.employee} />
+                                                        <p className="ml-12 mt-1 text-xs text-blue-800">
+                                                            {application.application_no ??
+                                                                `Application #${application.id}`}
+                                                        </p>
+                                                    </td>
 
-                                            return (
-                                                <tr key={application.id} className="transition-colors hover:bg-slate-50/80">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-start gap-3">
-                                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf3fb] text-[#205c86]">
-                                                                <UserRound aria-hidden="true" className="h-5 w-5" />
-                                                            </span>
-                                                            <div className="min-w-0">
-                                                                <Link href={reviewUrl} className="text-sm font-semibold text-[#205c86] hover:text-[#17366b] hover:underline">
-                                                                    {application.application_no ?? `Application #${application.id}`}
-                                                                </Link>
-                                                                <p className="mt-1 truncate text-sm font-medium text-slate-800">{employee?.name ?? 'Unknown employee'}</p>
-                                                                <p className="mt-1 truncate text-xs text-slate-500">
-                                                                    {employee?.employee_number ?? 'No employee number'}
-                                                                    {employee?.organizational_unit?.name ? ` · ${employee.organizational_unit.name}` : ''}
+                                                    <td className="px-5 py-4">
+                                                        <p className="text-sm font-medium text-slate-800">
+                                                            {application.leave_type?.name ?? 'Leave'}
+                                                        </p>
+                                                        {application.leave_type?.code && (
+                                                            <p className="mt-1 text-xs text-slate-500">
+                                                                {application.leave_type.code}
+                                                            </p>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex items-start gap-2">
+                                                            <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                                                            <div>
+                                                                <p className="text-sm text-slate-800">
+                                                                    {formatDate(application.start_date)}
+                                                                </p>
+                                                                <p className="mt-1 text-xs text-slate-500">
+                                                                    to {formatDate(application.end_date)}
+                                                                </p>
+                                                                <p className="mt-1 text-xs text-slate-400">
+                                                                    Filed {formatDate(application.submitted_at)}
                                                                 </p>
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-4 py-4">
-                                                        <p className="text-sm font-medium text-slate-800">{application.leave_type?.name ?? 'Leave'}</p>
-                                                        {application.leave_type?.code && <p className="mt-1 text-xs text-slate-500">{application.leave_type.code}</p>}
-                                                        {application.total_days != null && (
-                                                            <p className="mt-2 text-xs text-slate-500">
-                                                                {application.total_days} {Number(application.total_days) === 1 ? 'day' : 'days'}
-                                                            </p>
-                                                        )}
+
+                                                    <td className="px-5 py-4 text-sm text-slate-700">
+                                                        {application.total_days != null
+                                                            ? `${application.total_days} ${Number(application.total_days) === 1 ? 'day' : 'days'}`
+                                                            : '—'}
                                                     </td>
-                                                    <td className="px-4 py-4">
-                                                        <div className="flex items-start gap-2.5">
-                                                            <CalendarDays aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                                                            <div>
-                                                                <p className="text-sm font-medium text-slate-800">{formatDate(application.start_date)}</p>
-                                                                <p className="mt-1 text-sm text-slate-500">to {formatDate(application.end_date)}</p>
-                                                                <p className="mt-2 text-xs text-slate-400">Submitted {formatDate(application.submitted_at)}</p>
-                                                            </div>
-                                                        </div>
+
+                                                    <td className="px-5 py-4">
+                                                        <StatusBadge status={application.status} />
                                                     </td>
-                                                    <td className="px-4 py-4"><StatusBadge status={application.status} /></td>
-                                                    <td className="px-6 py-4 text-right">
+
+                                                    <td className="px-5 py-4 text-right">
                                                         <Link
-                                                            href={reviewUrl}
-                                                            aria-label={`Review application ${application.application_no ?? application.id}`}
-                                                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[#205c86] transition-colors hover:border-[#b7cfe2] hover:bg-[#f3f8fc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2"
+                                                            href={`/leave/approvals/${application.id}`}
+                                                            className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800"
                                                         >
-                                                            <Eye aria-hidden="true" className="h-4 w-4" />
+                                                            <Eye className="h-4 w-4" />
                                                             Review
                                                         </Link>
                                                     </td>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
 
-                            <div className="divide-y divide-slate-100 md:hidden">
-                                {requests.map((application) => {
-                                    const employee = application.employee;
-                                    const reviewUrl = `/leave/approvals/${application.id}`;
-
-                                    return (
-                                        <article key={application.id} className="space-y-4 p-4 sm:p-5">
-                                            <div className="flex items-start gap-3">
-                                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf3fb] text-[#205c86]">
-                                                    <UserRound aria-hidden="true" className="h-5 w-5" />
-                                                </span>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex flex-wrap items-start justify-between gap-2">
-                                                        <Link href={reviewUrl} className="break-words text-sm font-semibold text-[#205c86] hover:underline">
-                                                            {application.application_no ?? `Application #${application.id}`}
-                                                        </Link>
-                                                        <StatusBadge status={application.status} />
+                                <div className="divide-y divide-slate-100 md:hidden">
+                                    {requests.map((application) => (
+                                        <article key={application.id} className="space-y-3 p-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <Link
+                                                        href={`/leave/approvals/${application.id}`}
+                                                        className="text-xs font-semibold text-blue-800"
+                                                    >
+                                                        {application.application_no ??
+                                                            `Application #${application.id}`}
+                                                    </Link>
+                                                    <div className="mt-2">
+                                                        <EmployeeCell employee={application.employee} />
                                                     </div>
-                                                    <p className="mt-1.5 text-sm font-semibold text-slate-900">{employee?.name ?? 'Unknown employee'}</p>
-                                                    <p className="mt-1 text-xs text-slate-500">
-                                                        {employee?.employee_number ?? 'No employee number'}
-                                                        {employee?.organizational_unit?.name ? ` · ${employee.organizational_unit.name}` : ''}
-                                                    </p>
                                                 </div>
+                                                <StatusBadge status={application.status} />
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-100 bg-[#f8fafc] p-3.5">
+                                            <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
                                                 <div>
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Leave type</p>
-                                                    <p className="mt-1 text-sm font-medium text-slate-800">{application.leave_type?.name ?? 'Leave'}</p>
-                                                    {application.leave_type?.code && <p className="mt-0.5 text-xs text-slate-500">{application.leave_type.code}</p>}
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                                        Leave type
+                                                    </p>
+                                                    <p className="mt-1 text-sm font-medium text-slate-800">
+                                                        {application.leave_type?.name ?? 'Leave'}
+                                                    </p>
+                                                    {application.leave_type?.code && (
+                                                        <p className="mt-0.5 text-xs text-slate-500">
+                                                            {application.leave_type.code}
+                                                        </p>
+                                                    )}
                                                 </div>
+
                                                 <div>
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Duration</p>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                                        Duration
+                                                    </p>
                                                     <p className="mt-1 text-sm font-medium text-slate-800">
                                                         {application.total_days != null
                                                             ? `${application.total_days} ${Number(application.total_days) === 1 ? 'day' : 'days'}`
-                                                            : 'Not specified'}
+                                                            : '—'}
                                                     </p>
                                                 </div>
+
                                                 <div>
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">From</p>
-                                                    <p className="mt-1 text-sm text-slate-800">{formatDate(application.start_date)}</p>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                                        Start date
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-slate-800">
+                                                        {formatDate(application.start_date)}
+                                                    </p>
                                                 </div>
+
                                                 <div>
-                                                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">To</p>
-                                                    <p className="mt-1 text-sm text-slate-800">{formatDate(application.end_date)}</p>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                                        End date
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-slate-800">
+                                                        {formatDate(application.end_date)}
+                                                    </p>
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                                <p className="text-xs text-slate-500">Submitted {formatDate(application.submitted_at)}</p>
-                                                <Link href={reviewUrl} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#17366b] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#102950] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2">
-                                                    <Eye aria-hidden="true" className="h-4 w-4" />
-                                                    Review request
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-xs text-slate-500">
+                                                    Filed {formatDate(application.submitted_at)}
+                                                </p>
+                                                <Link
+                                                    href={`/leave/approvals/${application.id}`}
+                                                    className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-medium text-white transition hover:bg-slate-700"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                    Review
                                                 </Link>
                                             </div>
                                         </article>
-                                    );
-                                })}
-                            </div>
-                        </>
-                    )}
-                </section>
+                                    ))}
+                                </div>
+                            </>
+                        )}
 
-                {lastPage > 1 && (
-                    <nav
-                        aria-label="Leave approval pagination"
-                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(16,42,76,0.04)] sm:flex-row sm:items-center sm:justify-between sm:px-5"
-                    >
-                        <p className="text-sm text-slate-600">
-                            Showing <span className="font-semibold text-slate-900">{applications.from ?? 0}–{applications.to ?? 0}</span>
-                            {' '}of <span className="font-semibold text-slate-900">{total}</span> requests
-                        </p>
-                        <div className="flex items-center justify-between gap-2 sm:justify-end">
-                            <PaginationButton href={previousUrl} disabled={currentPage <= 1} label="Previous page">
-                                <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-                                Previous
-                            </PaginationButton>
-                            <span aria-current="page" className="inline-flex h-10 min-w-10 items-center justify-center rounded-lg bg-[#17366b] px-3 text-sm font-semibold text-white">
-                                {currentPage}
-                                <span className="sr-only"> of {lastPage}</span>
-                            </span>
-                            <PaginationButton href={nextUrl} disabled={currentPage >= lastPage} label="Next page">
-                                Next
-                                <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                            </PaginationButton>
-                        </div>
-                    </nav>
-                )}
+                        <Pagination
+                            page={currentPage}
+                            lastPage={lastPage}
+                            from={applications?.from}
+                            to={applications?.to}
+                            total={total}
+                            previous={previousUrl}
+                            next={nextUrl}
+                            label="Leave applications pagination"
+                        />
+                    </section>
 
-                <section
-                    aria-labelledby="approval-history-heading"
-                    className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-                >
-                    <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                        <div>
-                            <h2 id="approval-history-heading" className="text-base font-semibold text-[#17366b]">
-                                My approval history
-                            </h2>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                                Decisions you have recorded, including requests that may still be moving through another approval step.
-                            </p>
-                        </div>
-                        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                            <FileText aria-hidden="true" className="h-3.5 w-3.5" />
-                            {historyTotal} {historyTotal === 1 ? 'decision' : 'decisions'}
-                        </span>
-                    </div>
+                    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+                        <SectionHeading
+                            title="Approval history"
+                            description="A record of decisions you have made on submitted leave applications."
+                            action={
+                                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                                    <History className="h-3.5 w-3.5" />
+                                    {historyTotal.toLocaleString('en-PH')} records
+                                </span>
+                            }
+                        />
 
-                    {historyItems.length === 0 ? (
-                        <div className="flex items-center gap-3 px-5 py-8">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                                <Inbox aria-hidden="true" className="h-4 w-4" />
-                            </span>
-                            <div>
-                                <p className="text-sm font-semibold text-slate-800">No approval history yet</p>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Your approved and rejected decisions will appear here.
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-slate-100">
-                            {historyItems.map((item) => {
-                                const application = item.leave_application;
-                                const decision = item.action?.toLowerCase();
-                                const decisionDate = item.acted_at;
+                        {historyItems.length === 0 ? (
+                            <EmptyState
+                                title="No decisions recorded"
+                                description="Your approved and rejected leave decisions will appear here."
+                            />
+                        ) : (
+                            <div className="divide-y divide-slate-100">
+                                {historyItems.map((item) => {
+                                    const application = item.leave_application;
+                                    const decision = item.action?.toLowerCase();
+                                    const isApproved = decision === 'approved';
 
-                                return (
-                                    <article key={item.id} className="flex flex-col gap-2 px-4 py-3 sm:px-5">
-                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    return (
+                                        <article
+                                            key={item.id}
+                                            className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                                        >
                                             <div className="flex min-w-0 items-start gap-3">
-                                                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                                    decision === 'approved'
-                                                        ? 'bg-emerald-50 text-emerald-700'
-                                                        : decision === 'rejected'
-                                                          ? 'bg-rose-50 text-rose-700'
-                                                          : 'bg-slate-100 text-slate-600'
-                                                }`}>
-                                                    {decision === 'approved' ? (
-                                                        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                                                <span
+                                                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                                        isApproved
+                                                            ? 'bg-emerald-50 text-emerald-700'
+                                                            : 'bg-rose-50 text-rose-700'
+                                                    }`}
+                                                >
+                                                    {isApproved ? (
+                                                        <CheckCircle2 className="h-4 w-4" />
                                                     ) : (
-                                                        <XCircle aria-hidden="true" className="h-4 w-4" />
+                                                        <XCircle className="h-4 w-4" />
                                                     )}
                                                 </span>
+
                                                 <div className="min-w-0">
-                                                    <p className="break-words text-sm font-semibold text-[#205c86]">
-                                                        {application?.application_no ?? `Application #${application?.id ?? '—'}`}
-                                                    </p>
-                                                    <p className="mt-0.5 text-sm font-medium text-slate-900">
+                                                    <p className="text-sm font-medium text-slate-800">
                                                         {application?.employee?.name ?? 'Unknown employee'}
                                                     </p>
                                                     <p className="mt-0.5 text-xs text-slate-500">
+                                                        {application?.application_no ??
+                                                            `Application #${application?.id ?? '—'}`}
+                                                        {' · '}
                                                         {application?.leave_type?.name ?? 'Leave'}
                                                         {application?.employee?.employee_number
                                                             ? ` · ${application.employee.employee_number}`
@@ -649,84 +689,54 @@ export default function Index({ applications, dashboard, recentApproved = [], ap
                                                             ? ` · ${application.employee.organizational_unit.name}`
                                                             : ''}
                                                     </p>
+                                                    {item.remarks && (
+                                                        <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+                                                            <span className="font-medium text-slate-600">
+                                                                Remarks:{' '}
+                                                            </span>
+                                                            {item.remarks}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                                                <StatusBadge status={decision} />
-                                                <span className="text-xs text-slate-500">
-                                                    {formatDate(decisionDate)}
-                                                </span>
-                                            </div>
-                                        </div>
 
-                                        <div className="grid gap-x-4 gap-y-1.5 rounded-lg bg-slate-50 px-3 py-2 sm:grid-cols-3">
-                                            <div>
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Leave period</p>
-                                                <p className="mt-0.5 text-xs text-slate-700">
-                                                    {application
-                                                        ? `${formatDate(application.start_date)} – ${formatDate(application.end_date)}`
-                                                        : 'Dates unavailable'}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Application status</p>
-                                                <div className="mt-0.5">
-                                                    <StatusBadge status={application?.status} />
+                                            <div className="flex shrink-0 flex-wrap items-center gap-3 sm:justify-end">
+                                                <StatusBadge status={item.action} />
+                                                <div className="text-left sm:text-right">
+                                                    <p className="text-xs font-medium text-slate-700">
+                                                        {formatDate(item.acted_at)}
+                                                    </p>
+                                                    {item.step_order != null && (
+                                                        <p className="mt-0.5 text-xs text-slate-400">
+                                                            Approval step {item.step_order}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Your decision</p>
-                                                <p className="mt-0.5 text-xs font-medium text-slate-800">
-                                                    {decision === 'approved' ? 'Approved at your step' : decision === 'rejected' ? 'Rejected at your step' : 'Decision recorded'}
-                                                    {item.step_order ? ` · Step ${item.step_order}` : ''}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {item.remarks && (
-                                            <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Your remarks</p>
-                                                <p className="mt-0.5 whitespace-pre-wrap text-xs leading-4 text-slate-600">{item.remarks}</p>
-                                            </div>
-                                        )}
-                                    </article>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {historyLastPage > 1 && (
-                        <nav
-                            aria-label="Approval history pagination"
-                            className="flex flex-col gap-3 border-t border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
-                        >
-                            <p className="text-sm text-slate-600">
-                                Showing <span className="font-semibold text-slate-900">{approvalHistory?.from ?? 0}–{approvalHistory?.to ?? 0}</span>
-                                {' '}of <span className="font-semibold text-slate-900">{historyTotal}</span> decisions
-                            </p>
-                            <div className="flex items-center justify-between gap-2 sm:justify-end">
-                                <PaginationButton href={historyPreviousUrl} disabled={historyCurrentPage <= 1} label="Previous history page">
-                                    <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-                                    Previous
-                                </PaginationButton>
-                                <span aria-current="page" className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-[#17366b] px-2.5 text-xs font-semibold text-white">
-                                    {historyCurrentPage}
-                                    <span className="sr-only"> of {historyLastPage}</span>
-                                </span>
-                                <PaginationButton href={historyNextUrl} disabled={historyCurrentPage >= historyLastPage} label="Next history page">
-                                    Next
-                                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                                </PaginationButton>
+                                        </article>
+                                    );
+                                })}
                             </div>
-                        </nav>
-                    )}
-                </section>
+                        )}
 
-                <footer className="flex flex-col gap-1 px-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                    <span>BHF Rural Bank</span>
-                    <span>Review requests according to your assigned approval workflow.</span>
-                </footer>
-            </div>
-        </div>
+                        <Pagination
+                            page={historyCurrentPage}
+                            lastPage={historyLastPage}
+                            from={approvalHistory?.from}
+                            to={approvalHistory?.to}
+                            total={historyTotal}
+                            previous={historyPreviousUrl}
+                            next={historyNextUrl}
+                            label="Approval history pagination"
+                        />
+                    </section>
+
+                    <footer className="flex flex-col gap-1 border-t border-slate-200 pt-4 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                        <span>BHF Rural Bank · Operations</span>
+                        <span>Approval activity is limited to your assigned workflow.</span>
+                    </footer>
+                </div>
+            </main>
+        </>
     );
 }

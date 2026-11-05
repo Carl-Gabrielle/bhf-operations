@@ -25,10 +25,30 @@ type AuthUser = {
     email?: string | null;
 };
 
+type DisplayValue = string | {
+    id?: number;
+    name?: string | null;
+    is_active?: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+} | null;
+
+type EmployeeInfo = {
+    id: number;
+    name: string;
+    employee_number?: string | null;
+    organizational_unit?: DisplayValue;
+    position?: DisplayValue;
+    manager?: DisplayValue;
+    manager_position?: DisplayValue;
+    has_approver?: boolean;
+};
+
 type PageProps = {
     auth: {
         user: AuthUser;
     };
+    employee?: EmployeeInfo;
 };
 
 type UndertimeFormData = {
@@ -55,6 +75,20 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: '/undertime/applications/create',
     },
 ];
+
+function getDisplayName(value: DisplayValue | undefined): string | null {
+    if (typeof value === 'string') {
+        return value.trim() || null;
+    }
+
+    if (value && typeof value === 'object') {
+        return typeof value.name === 'string' && value.name.trim()
+            ? value.name.trim()
+            : null;
+    }
+
+    return null;
+}
 
 function getToday(): string {
     const now = new Date();
@@ -160,6 +194,13 @@ function SectionHeading({
 export default function CreateUndertimeApplication() {
     const { props } = usePage<PageProps>();
     const user = props.auth?.user;
+    const employee = props.employee;
+
+    const employeeName = employee?.name || user?.name || 'Authenticated employee';
+    const reportingManager = getDisplayName(employee?.manager);
+    const managerPosition = getDisplayName(employee?.manager_position);
+    const organizationalUnit = getDisplayName(employee?.organizational_unit);
+    const employeePosition = getDisplayName(employee?.position);
 
     const { data, setData, post, processing, errors } =
         useForm<UndertimeFormData>({
@@ -198,6 +239,10 @@ export default function CreateUndertimeApplication() {
     }
 
     const checklist = [
+        {
+            label: 'Reporting manager assigned',
+            done: Boolean(reportingManager),
+        },
         {
             label: 'Undertime date selected',
             done: Boolean(data.undertime_date),
@@ -295,11 +340,11 @@ export default function CreateUndertimeApplication() {
                                     <SectionHeading
                                         icon={UserRound}
                                         title="Employee Information"
-                                        description="Your account is used to identify the employee filing this request."
+                                        description="Your employee profile and assigned reporting manager are loaded from your account."
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:p-6">
+                                <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 sm:p-6">
                                     <div>
                                         <label className="mb-1.5 block text-xs font-semibold text-slate-700">
                                             Employee Name
@@ -307,20 +352,18 @@ export default function CreateUndertimeApplication() {
 
                                         <div className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5">
                                             <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-xs font-bold text-blue-800">
-                                                {(user?.name || 'U')
+                                                {employeeName
                                                     .trim()
                                                     .split(/\s+/)
                                                     .slice(0, 2)
                                                     .map((part: string) =>
-                                                        part
-                                                            .charAt(0)
-                                                            .toUpperCase(),
+                                                        part.charAt(0).toUpperCase(),
                                                     )
                                                     .join('')}
                                             </div>
 
                                             <span className="truncate text-sm font-semibold text-slate-800">
-                                                {user?.name || 'Authenticated employee'}
+                                                {employeeName}
                                             </span>
                                         </div>
                                     </div>
@@ -335,19 +378,78 @@ export default function CreateUndertimeApplication() {
                                             <span className="text-sm font-medium text-slate-700">
                                                 {new Date(
                                                     `${getToday()}T12:00:00`,
-                                                ).toLocaleDateString(
-                                                    undefined,
-                                                    {
-                                                        year: 'numeric',
-                                                        month: 'long',
-                                                        day: 'numeric',
-                                                    },
-                                                )}
+                                                ).toLocaleDateString(undefined, {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                })}
                                             </span>
                                         </div>
                                         <p className="mt-1.5 text-[11px] text-slate-400">
                                             Recorded by the server at submission.
                                         </p>
+                                    </div>
+
+                                    <div className="sm:col-span-2">
+                                        <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+                                            Reporting Manager / Head
+                                        </label>
+
+                                        <div className={`flex min-h-14 items-center gap-3 rounded-xl border px-3.5 py-2.5 ${
+                                            reportingManager
+                                                ? 'border-blue-100 bg-blue-50/60'
+                                                : 'border-amber-200 bg-amber-50'
+                                        }`}>
+                                            <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+                                                reportingManager
+                                                    ? 'bg-white text-blue-800'
+                                                    : 'bg-white text-amber-700'
+                                            }`}>
+                                                <UserRound className="size-4" />
+                                            </div>
+
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm font-semibold text-slate-800">
+                                                    {reportingManager || 'No reporting manager assigned'}
+                                                </p>
+                                                <p className="mt-0.5 text-xs text-slate-500">
+                                                    {managerPosition || 'Assigned approver'}
+                                                </p>
+                                            </div>
+
+                                            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                                reportingManager
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : 'bg-amber-100 text-amber-800'
+                                            }`}>
+                                                {reportingManager ? 'First approver' : 'Action required'}
+                                            </span>
+                                        </div>
+
+                                        <p className="mt-1.5 text-[11px] text-slate-400">
+                                            Automatically assigned from your employee profile. Contact HR if this information is incorrect.
+                                        </p>
+
+                                        {!reportingManager && (
+                                            <p role="alert" className="mt-2 text-xs font-medium text-amber-700">
+                                                You cannot submit this request until HR assigns a reporting manager or head to your account.
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:col-span-2">
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3.5 py-3">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Employee number</p>
+                                            <p className="mt-1.5 truncate text-sm font-medium text-slate-800">{employee?.employee_number || '—'}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3.5 py-3">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Department / unit</p>
+                                            <p className="mt-1.5 truncate text-sm font-medium text-slate-800">{organizationalUnit || '—'}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3.5 py-3">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Position</p>
+                                            <p className="mt-1.5 truncate text-sm font-medium text-slate-800">{employeePosition || '—'}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </section>
@@ -736,6 +838,7 @@ export default function CreateUndertimeApplication() {
                                     type="submit"
                                     disabled={
                                         processing ||
+                                        !reportingManager ||
                                         !hasValidDuration ||
                                         !data.employee_confirmed ||
                                         data.reason.trim().length < 10

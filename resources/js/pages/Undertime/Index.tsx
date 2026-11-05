@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, type FormEvent } from 'react';
 import { Link, router } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -12,9 +13,12 @@ import {
     Search,
     SlidersHorizontal,
     XCircle,
+    ChevronRight,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+
+const BASE_URL = '/undertime/applications';
 
 type UndertimeApplication = {
     id: number;
@@ -47,7 +51,11 @@ type Props = {
 
 const statusConfig: Record<
     string,
-    { label: string; className: string; icon: typeof FileText }
+    {
+        label: string;
+        className: string;
+        icon: typeof FileText;
+    }
 > = {
     draft: {
         label: 'Draft',
@@ -60,7 +68,7 @@ const statusConfig: Record<
         icon: FileText,
     },
     pending_approval: {
-        label: 'Pending approval',
+        label: 'Pending Approval',
         className: 'border-amber-200 bg-amber-50 text-amber-800',
         icon: Clock3,
     },
@@ -75,7 +83,7 @@ const statusConfig: Record<
         icon: XCircle,
     },
     returned: {
-        label: 'Returned for update',
+        label: 'Returned for Update',
         className: 'border-orange-200 bg-orange-50 text-orange-800',
         icon: FileText,
     },
@@ -86,15 +94,15 @@ const statusConfig: Record<
     },
 };
 
-function getStatus(statusValue: string) {
-    const key = (statusValue ?? '').trim().toLowerCase();
+function getStatus(value: string) {
+    const key = (value ?? '').trim().toLowerCase();
 
     return (
         statusConfig[key] ?? {
             label: key
-                ? key
-                      .replace(/_/g, ' ')
-                      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+                ? key.replace(/_/g, ' ').replace(/\b\w/g, (letter) =>
+                      letter.toUpperCase(),
+                  )
                 : 'Unknown',
             className: 'border-slate-200 bg-slate-100 text-slate-600',
             icon: FileText,
@@ -110,7 +118,7 @@ function StatusBadge({ value }: { value: string }) {
         <span
             className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${status.className}`}
         >
-            <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+            <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{status.label}</span>
         </span>
     );
@@ -130,13 +138,13 @@ function MetricCard({
     iconClassName: string;
 }) {
     return (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(16,42,76,0.04)] sm:p-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         {label}
                     </p>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight text-[#17366b]">
+                    <p className="mt-2 text-2xl font-bold tracking-tight text-[#17366b]">
                         {value}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">{detail}</p>
@@ -145,7 +153,7 @@ function MetricCard({
                 <span
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconClassName}`}
                 >
-                    <Icon aria-hidden="true" className="h-5 w-5" />
+                    <Icon className="h-5 w-5" />
                 </span>
             </div>
         </section>
@@ -207,7 +215,10 @@ function formatMinutes(value: number) {
     return `${remainingMinutes}m`;
 }
 
-export default function Index({ applications, filters = {} }: Props) {
+export default function Index({
+    applications,
+    filters = {},
+}: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
 
@@ -229,11 +240,32 @@ export default function Index({ applications, filters = {} }: Props) {
         ? `${applications.from ?? 0}–${applications.to ?? 0}`
         : '0';
 
-    function applyFilters(event: React.FormEvent<HTMLFormElement>) {
+    // Build URLs consistently for search and pagination.
+    function buildUrl(page = 1) {
+        const params = new URLSearchParams();
+
+        if (search.trim()) {
+            params.set('search', search.trim());
+        }
+
+        if (status) {
+            params.set('status', status);
+        }
+
+        if (page > 1) {
+            params.set('page', String(page));
+        }
+
+        const query = params.toString();
+
+        return query ? `${BASE_URL}?${query}` : BASE_URL;
+    }
+
+    function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         router.get(
-            '/undertime',
+            BASE_URL,
             {
                 search: search.trim() || undefined,
                 status: status || undefined,
@@ -251,7 +283,7 @@ export default function Index({ applications, filters = {} }: Props) {
         setStatus('');
 
         router.get(
-            '/undertime',
+            BASE_URL,
             {},
             {
                 preserveState: true,
@@ -261,24 +293,41 @@ export default function Index({ applications, filters = {} }: Props) {
         );
     }
 
+    // Correct application details URL.
+    function getViewUrl(application: UndertimeApplication) {
+        return `${BASE_URL}/${application.id}`;
+    }
+
     return (
         <div className="min-h-full bg-[#f4f7fb] text-slate-900">
             <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-                {/* Page header */}
-                <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_2px_rgba(16,42,76,0.04)] sm:p-7">
+
+                {/* Breadcrumb */}
+                <nav className="flex items-center gap-2 text-xs text-slate-500">
+                    <Link href="/dashboard" className="hover:text-[#17366b]">
+                        Dashboard
+                    </Link>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                    <span className="font-semibold text-slate-800">
+                        Undertime Applications
+                    </span>
+                </nav>
+
+                {/* Header */}
+                <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex min-w-0 items-start gap-4">
-                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#17366b] text-sm font-extrabold tracking-wide text-white shadow-sm">
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#17366b] text-sm font-extrabold tracking-wide text-white">
                                 BHF
                             </span>
 
                             <div className="min-w-0">
-                                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                                     Employee Services
                                 </p>
 
-                                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#17366b] sm:text-3xl">
-                                    Undertime applications
+                                <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#17366b] sm:text-3xl">
+                                    Undertime Applications
                                 </h1>
 
                                 <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
@@ -290,14 +339,11 @@ export default function Index({ applications, filters = {} }: Props) {
 
                         <Button
                             asChild
-                            className="w-full shrink-0 rounded-lg bg-[#17366b] px-4 text-white shadow-sm hover:bg-[#102950] sm:w-auto"
+                            className="w-full shrink-0 rounded-lg bg-[#17366b] text-white hover:bg-[#102950] sm:w-auto"
                         >
-                            <Link  href="/undertime/applications/create">
-                                <Plus
-                                    aria-hidden="true"
-                                    className="mr-2 h-4 w-4"
-                                />
-                                File an undertime request
+                            <Link href={`${BASE_URL}/create`}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                File an Undertime Request
                             </Link>
                         </Button>
                     </div>
@@ -306,7 +352,7 @@ export default function Index({ applications, filters = {} }: Props) {
                 {/* Summary cards */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <MetricCard
-                        label="My requests"
+                        label="My Requests"
                         value={total}
                         detail="All matching undertime requests"
                         icon={FileText}
@@ -314,7 +360,7 @@ export default function Index({ applications, filters = {} }: Props) {
                     />
 
                     <MetricCard
-                        label="Awaiting approval"
+                        label="Awaiting Approval"
                         value={pendingCount}
                         detail="On this page"
                         icon={Clock3}
@@ -331,7 +377,7 @@ export default function Index({ applications, filters = {} }: Props) {
                 </div>
 
                 {/* Search and filters */}
-                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(16,42,76,0.04)] sm:p-5">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                     <form
                         onSubmit={applyFilters}
                         className="flex flex-col gap-3 lg:flex-row lg:items-end"
@@ -341,14 +387,11 @@ export default function Index({ applications, filters = {} }: Props) {
                                 htmlFor="undertime-search"
                                 className="mb-2 block text-xs font-semibold text-slate-600"
                             >
-                                Search requests
+                                Search Requests
                             </label>
 
                             <div className="relative">
-                                <Search
-                                    aria-hidden="true"
-                                    className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                                />
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
                                 <input
                                     id="undertime-search"
@@ -358,7 +401,7 @@ export default function Index({ applications, filters = {} }: Props) {
                                         setSearch(event.target.value)
                                     }
                                     placeholder="Search application number or reason..."
-                                    className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#4389bc] focus:ring-2 focus:ring-[#4389bc]/20"
+                                    className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#4389bc] focus:ring-2 focus:ring-[#4389bc]/20"
                                 />
                             </div>
                         </div>
@@ -368,7 +411,7 @@ export default function Index({ applications, filters = {} }: Props) {
                                 htmlFor="undertime-status"
                                 className="mb-2 block text-xs font-semibold text-slate-600"
                             >
-                                Application status
+                                Application Status
                             </label>
 
                             <select
@@ -377,18 +420,18 @@ export default function Index({ applications, filters = {} }: Props) {
                                 onChange={(event) =>
                                     setStatus(event.target.value)
                                 }
-                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-[#4389bc] focus:ring-2 focus:ring-[#4389bc]/20"
+                                className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-[#4389bc] focus:ring-2 focus:ring-[#4389bc]/20"
                             >
-                                <option value="">All statuses</option>
+                                <option value="">All Statuses</option>
                                 <option value="draft">Draft</option>
                                 <option value="submitted">Submitted</option>
                                 <option value="pending_approval">
-                                    Pending approval
+                                    Pending Approval
                                 </option>
                                 <option value="approved">Approved</option>
                                 <option value="rejected">Rejected</option>
                                 <option value="returned">
-                                    Returned for update
+                                    Returned for Update
                                 </option>
                                 <option value="cancelled">Cancelled</option>
                             </select>
@@ -399,11 +442,8 @@ export default function Index({ applications, filters = {} }: Props) {
                                 type="submit"
                                 className="h-11 flex-1 rounded-lg bg-[#17366b] px-4 text-white hover:bg-[#102950] lg:flex-none"
                             >
-                                <SlidersHorizontal
-                                    aria-hidden="true"
-                                    className="mr-2 h-4 w-4"
-                                />
-                                Apply filters
+                                <SlidersHorizontal className="mr-2 h-4 w-4" />
+                                Apply Filters
                             </Button>
 
                             <Button
@@ -418,20 +458,20 @@ export default function Index({ applications, filters = {} }: Props) {
                     </form>
                 </section>
 
-                {/* Applications */}
+                {/* Applications list */}
                 <section
                     aria-labelledby="undertime-list-heading"
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(16,42,76,0.04)]"
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                 >
-                    <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
+                    <div className="border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
                         <h2
                             id="undertime-list-heading"
-                            className="text-base font-semibold text-[#17366b]"
+                            className="text-base font-bold text-[#17366b]"
                         >
-                            Your undertime requests
+                            Your Undertime Requests
                         </h2>
 
-                        <p className="text-sm text-slate-500">
+                        <p className="mt-1 text-sm text-slate-500">
                             Review your requested departure times and track
                             each application's progress.
                         </p>
@@ -440,14 +480,11 @@ export default function Index({ applications, filters = {} }: Props) {
                     {rows.length === 0 ? (
                         <div className="flex flex-col items-center px-5 py-14 text-center sm:py-20">
                             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eaf3fb] text-[#4389bc]">
-                                <CalendarDays
-                                    aria-hidden="true"
-                                    className="h-7 w-7"
-                                />
+                                <CalendarDays className="h-7 w-7" />
                             </span>
 
                             <h3 className="mt-5 text-base font-semibold text-[#17366b]">
-                                No undertime requests found
+                                No Undertime Requests Found
                             </h3>
 
                             <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
@@ -460,30 +497,26 @@ export default function Index({ applications, filters = {} }: Props) {
                                 asChild
                                 className="mt-6 rounded-lg bg-[#17366b] text-white hover:bg-[#102950]"
                             >
-                                <Link  href="/undertime/applications/create">
-                                    <Plus
-                                        aria-hidden="true"
-                                        className="mr-2 h-4 w-4"
-                                    />
-                                    File an undertime request
+                                <Link href={`${BASE_URL}/create`}>
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    File an Undertime Request
                                 </Link>
                             </Button>
                         </div>
                     ) : (
                         <>
                             {/* Desktop table header */}
-                            <div className="hidden grid-cols-[1.2fr_1fr_1fr_1fr_auto] gap-5 bg-[#f8fafc] px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.09em] text-slate-500 md:grid">
+                            <div className="hidden grid-cols-[1.2fr_1fr_1fr_1fr_auto] gap-5 bg-[#f8fafc] px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 md:grid">
                                 <span>Application</span>
-                                <span>Undertime date</span>
-                                <span>Departure time</span>
+                                <span>Undertime Date</span>
+                                <span>Departure Time</span>
                                 <span>Status</span>
                                 <span className="text-right">Actions</span>
                             </div>
 
                             <div className="divide-y divide-slate-100">
                                 {rows.map((application) => {
-                                    const viewUrl =
-                                        `/undertime/${application.id}`;
+                                    const viewUrl = getViewUrl(application);
 
                                     return (
                                         <article
@@ -496,13 +529,13 @@ export default function Index({ applications, filters = {} }: Props) {
                                                     <div className="min-w-0">
                                                         <Link
                                                             href={viewUrl}
-                                                            className="break-all text-sm font-semibold text-[#17366b] underline-offset-4 hover:underline"
+                                                            className="break-all text-sm font-semibold text-[#17366b] hover:underline"
                                                         >
                                                             {application.application_no}
                                                         </Link>
 
                                                         <p className="mt-1 text-xs text-slate-500">
-                                                            Undertime request
+                                                            Undertime Request
                                                         </p>
                                                     </div>
 
@@ -513,8 +546,8 @@ export default function Index({ applications, filters = {} }: Props) {
 
                                                 <div className="grid grid-cols-2 gap-4 rounded-xl bg-[#f8fafc] p-3">
                                                     <div>
-                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                                            Request date
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                                            Request Date
                                                         </p>
 
                                                         <p className="mt-1 text-sm font-medium text-slate-800">
@@ -525,7 +558,7 @@ export default function Index({ applications, filters = {} }: Props) {
                                                     </div>
 
                                                     <div>
-                                                        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                                                             Departure
                                                         </p>
 
@@ -549,13 +582,10 @@ export default function Index({ applications, filters = {} }: Props) {
 
                                                     <Link
                                                         href={viewUrl}
-                                                        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-[#17366b] transition-colors hover:border-[#4389bc] hover:bg-[#f3f8fc]"
+                                                        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-[#17366b] transition hover:border-[#4389bc] hover:bg-[#f3f8fc]"
                                                     >
-                                                        <Eye
-                                                            aria-hidden="true"
-                                                            className="h-4 w-4"
-                                                        />
-                                                        View details
+                                                        <Eye className="h-4 w-4" />
+                                                        View Details
                                                     </Link>
                                                 </div>
                                             </div>
@@ -565,7 +595,7 @@ export default function Index({ applications, filters = {} }: Props) {
                                                 <div className="min-w-0">
                                                     <Link
                                                         href={viewUrl}
-                                                        className="break-all text-sm font-semibold text-[#17366b] underline-offset-4 hover:underline"
+                                                        className="break-all text-sm font-semibold text-[#17366b] hover:underline"
                                                     >
                                                         {application.application_no}
                                                     </Link>
@@ -600,13 +630,10 @@ export default function Index({ applications, filters = {} }: Props) {
                                                     <Link
                                                         href={viewUrl}
                                                         aria-label={`View application ${application.application_no}`}
-                                                        title="View application"
-                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-[#4389bc] hover:bg-[#f3f8fc] hover:text-[#17366b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2"
+                                                        title="View Application"
+                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-[#4389bc] hover:bg-[#f3f8fc] hover:text-[#17366b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4389bc] focus-visible:ring-offset-2"
                                                     >
-                                                        <Eye
-                                                            aria-hidden="true"
-                                                            className="h-4 w-4"
-                                                        />
+                                                        <Eye className="h-4 w-4" />
                                                     </Link>
                                                 </div>
                                             </div>
@@ -622,7 +649,7 @@ export default function Index({ applications, filters = {} }: Props) {
                 {applications.last_page > 1 && (
                     <nav
                         aria-label="Undertime application pages"
-                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(16,42,76,0.04)] sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                        className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5"
                     >
                         <p className="text-sm text-slate-600">
                             Showing{' '}
@@ -639,9 +666,11 @@ export default function Index({ applications, filters = {} }: Props) {
                         <div className="flex items-center justify-between gap-2 sm:justify-end">
                             {applications.current_page > 1 ? (
                                 <Link
-                                    href={`/undertime?page=${applications.current_page - 1}${search ? `&search=${encodeURIComponent(search)}` : ''}${status ? `&status=${encodeURIComponent(status)}` : ''}`}
+                                    href={buildUrl(
+                                        applications.current_page - 1,
+                                    )}
                                     preserveScroll
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                                 >
                                     <ArrowLeft className="h-4 w-4" />
                                     Previous
@@ -667,9 +696,11 @@ export default function Index({ applications, filters = {} }: Props) {
                             {applications.current_page <
                             applications.last_page ? (
                                 <Link
-                                    href={`/undertime?page=${applications.current_page + 1}${search ? `&search=${encodeURIComponent(search)}` : ''}${status ? `&status=${encodeURIComponent(status)}` : ''}`}
+                                    href={buildUrl(
+                                        applications.current_page + 1,
+                                    )}
                                     preserveScroll
-                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                                 >
                                     Next
                                     <ArrowRight className="h-4 w-4" />
@@ -684,6 +715,7 @@ export default function Index({ applications, filters = {} }: Props) {
                     </nav>
                 )}
 
+                {/* Footer */}
                 <footer className="flex flex-col gap-1 px-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                     <span>BHF Rural Bank · Operations Management</span>
                     <span>

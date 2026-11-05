@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Undertime;
 
 use App\Http\Controllers\Controller;
 use App\Models\UndertimeApplication;
+use App\Services\Undertime\UndertimeApplicationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,7 +15,7 @@ use Inertia\Response;
 class UndertimeApplicationController extends Controller
 {
     /**
-     * Display the authenticated employee's undertime applications.
+     * Display the authenticated employee's applications.
      */
     public function index(Request $request): Response
     {
@@ -66,23 +65,46 @@ class UndertimeApplicationController extends Controller
     }
 
     /**
-     * Display the undertime application form.
+     * Display the application form.
      */
     public function create(Request $request): Response
     {
+        $user = $request->user()->loadMissing([
+            'organizationalUnit:id,code,name',
+            'position:id,name',
+            'reportsTo.position:id,name',
+        ]);
+
+        $manager = $user->reportsTo;
+
+        $hasApprover = $manager
+            && $manager->account_status === 'active'
+            && (bool) $manager->can_be_reporting_manager
+            && $manager->can('undertime.approve');
+
         return Inertia::render('Undertime/Create', [
             'employee' => [
-                'id' => $request->user()->id,
-                'name' => $request->user()->name,
+                'id' => $user->id,
+                'name' => $user->name,
+                'employee_number' => $user->employee_number,
+                'organizational_unit' => $user->organizationalUnit?->name,
+                'position' => $user->position?->name,
+                'manager' => $hasApprover ? $manager->name : null,
+                'manager_position' => $hasApprover
+                    ? $manager->position?->name
+                    : null,
+                'has_approver' => (bool) $hasApprover,
             ],
         ]);
     }
 
     /**
-     * Validate and submit an undertime application.
+     * Validate and submit an Undertime application.
      */
-    public function store(Request $request): RedirectResponse
-    {
+    public function store(
+        Request $request,
+        UndertimeApplicationService $service
+    ): RedirectResponse {
         $validated = $request->validate([
             'undertime_date' => [
                 'required',
@@ -126,8 +148,7 @@ class UndertimeApplicationController extends Controller
         ]);
 
         /*
-         * Validate the same-day schedule and calculate duration
-         * on the server. Never trust a duration calculated by React.
+         * Calculate the requested undertime duration on the server.
          */
         $scheduledEnd = $this->timeToMinutes(
             $validated['scheduled_end_time']
@@ -144,21 +165,30 @@ class UndertimeApplicationController extends Controller
             ]);
         }
 
-        if (
-            ! empty($validated['scheduled_start_time']) &&
-            $this->timeToMinutes($validated['scheduled_start_time']) >= $scheduledEnd
-        ) {
-            throw ValidationException::withMessages([
-                'scheduled_start_time' =>
-                    'The scheduled start time must be earlier than the scheduled end time.',
-            ]);
+        if (!empty($validated['scheduled_start_time'])) {
+            $scheduledStart = $this->timeToMinutes(
+                $validated['scheduled_start_time']
+            );
+
+            if ($scheduledStart >= $scheduledEnd) {
+                throw ValidationException::withMessages([
+                    'scheduled_start_time' =>
+                        'The scheduled start time must be earlier than the scheduled end time.',
+                ]);
+            }
+
+            if ($departure < $scheduledStart) {
+                throw ValidationException::withMessages([
+                    'requested_departure_time' =>
+                        'The requested departure time cannot be earlier than the scheduled start time.',
+                ]);
+            }
         }
 
-        $requestedMinutes = $scheduledEnd - $departure;
+        $validated['requested_minutes'] = $scheduledEnd - $departure;
 
         /*
-         * Store attachments privately. The download endpoint must
-         * authorize access before serving these files.
+         * Store the attachment privately.
          */
         $attachmentPath = null;
 
@@ -167,60 +197,15 @@ class UndertimeApplicationController extends Controller
                 ->store('undertime-attachments', 'local');
         }
 
+        $validated['attachment_path'] = $attachmentPath;
+
         try {
-            $application = DB::transaction(function () use (
-                $request,
-                $validated,
-                $requestedMinutes,
-                $attachmentPath
-            ) {
-                $user = $request->user();
-
-                return UndertimeApplication::create([
-                    'application_no' => $this->generateApplicationNumber(),
-
-                    // Always use the authenticated employee.
-                    'employee_id' => $user->id,
-
-                    // Filing date comes from the server.
-                    'date_filed' => now()->toDateString(),
-
-                    'undertime_date' => $validated['undertime_date'],
-
-                    'scheduled_start_time' =>
-                        $validated['scheduled_start_time'] ?? null,
-
-                    'scheduled_end_time' =>
-                        $validated['scheduled_end_time'],
-
-                    'requested_departure_time' =>
-                        $validated['requested_departure_time'],
-
-                    'requested_minutes' => $requestedMinutes,
-
-                    'reason' => trim($validated['reason']),
-
-                    'attachment_path' => $attachmentPath,
-
-                    /*
-                     * This initial status assumes the next phase
-                     * will process requests through an approval workflow.
-                     */
-                    'status' => 'pending_approval',
-
-                    'current_step' => 1,
-
-                    'employee_confirmed' => true,
-
-                    'employee_confirmed_at' => now(),
-
-                    'submitted_at' => now(),
-                ]);
-            });
+            $application = $service->submit(
+                $request->user(),
+                $validated
+            );
         } catch (\Throwable $exception) {
-            /*
-             * Avoid leaving an uploaded file behind if persistence fails.
-             */
+            // Remove uploaded file if submission fails.
             if ($attachmentPath !== null) {
                 Storage::disk('local')->delete($attachmentPath);
             }
@@ -232,7 +217,7 @@ class UndertimeApplicationController extends Controller
             ->route('undertime.applications.show', $application)
             ->with(
                 'success',
-                'Your undertime request has been submitted successfully.'
+                'Your Undertime application has been submitted successfully for approval.'
             );
     }
 
@@ -250,34 +235,58 @@ class UndertimeApplicationController extends Controller
 
         $undertimeApplication->load([
             'employee:id,name',
+            'approvalWorkflow.steps',
+            'approvals.approver:id,name',
+            'approvals.workflowStep:id,name,step_order',
         ]);
 
         return Inertia::render('Undertime/Show', [
             'application' => [
                 'id' => $undertimeApplication->id,
                 'application_no' => $undertimeApplication->application_no,
+
                 'employee' => [
                     'id' => $undertimeApplication->employee?->id,
                     'name' => $undertimeApplication->employee?->name,
                 ],
+
                 'date_filed' => $undertimeApplication->date_filed?->format('Y-m-d'),
                 'undertime_date' => $undertimeApplication->undertime_date?->format('Y-m-d'),
+
                 'scheduled_start_time' => $undertimeApplication->scheduled_start_time,
                 'scheduled_end_time' => $undertimeApplication->scheduled_end_time,
                 'requested_departure_time' => $undertimeApplication->requested_departure_time,
+
                 'requested_minutes' => $undertimeApplication->requested_minutes,
                 'reason' => $undertimeApplication->reason,
+
                 'has_attachment' => filled($undertimeApplication->attachment_path),
+
                 'status' => $undertimeApplication->status,
+
                 'employee_confirmed' => $undertimeApplication->employee_confirmed,
                 'submitted_at' => $undertimeApplication->submitted_at?->toISOString(),
                 'created_at' => $undertimeApplication->created_at?->toISOString(),
+
+                'workflow' => $undertimeApplication->approvalWorkflow?->name,
+
+                'approvals' => $undertimeApplication->approvals
+                    ->map(fn ($approval) => [
+                        'id' => $approval->id,
+                        'step_order' => $approval->step_order,
+                        'step_name' => $approval->workflowStep?->name,
+                        'approver' => $approval->approver?->name,
+                        'action' => $approval->action,
+                        'remarks' => $approval->remarks,
+                        'acted_at' => $approval->acted_at?->toISOString(),
+                    ])
+                    ->values(),
             ],
         ]);
     }
 
     /**
-     * Convert an HH:mm time into minutes after midnight.
+     * Convert HH:mm into minutes after midnight.
      */
     private function timeToMinutes(string $time): int
     {
@@ -287,22 +296,5 @@ class UndertimeApplicationController extends Controller
         );
 
         return ($hours * 60) + $minutes;
-    }
-
-    /**
-     * Generate a unique application reference.
-     */
-    private function generateApplicationNumber(): string
-    {
-        do {
-            $applicationNumber = 'UT-' . now()->format('Ymd') . '-'
-                . Str::upper(Str::random(8));
-        } while (
-            UndertimeApplication::query()
-                ->where('application_no', $applicationNumber)
-                ->exists()
-        );
-
-        return $applicationNumber;
     }
 }

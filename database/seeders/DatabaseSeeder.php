@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
             PositionSeeder::class,
             TestAccountSeeder::class,
             LeaveApprovalWorkflowSeeder::class,
+            UndertimeApprovalWorkflowSeeder::class,
         ]);
     }
 }
